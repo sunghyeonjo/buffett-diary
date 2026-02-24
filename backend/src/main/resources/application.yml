@@ -1,0 +1,26 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:buffettdiary
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+    open-in-view: false
+
+jwt:
+  secret: buffett-diary-jwt-secret-key-for-development-only-change-in-production-2024
+  access-expiration: 1800000   # 30 minutes
+  refresh-expiration: 604800000 # 7 days
+
+server:
+  port: 8080
