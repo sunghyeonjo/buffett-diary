@@ -16,6 +16,7 @@ export default function LoginPage() {
 
   const onSubmit = async (data: LoginRequest) => {
     try {
+      console.log("ENV:", import.meta.env.VITE_API_BASE_URL)
       setError('')
       await login(data)
       navigate('/')
