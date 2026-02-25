@@ -8,12 +8,14 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.math.BigDecimal
 import java.math.RoundingMode
+import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalDateTime
 
 @Service
 class TradeService(
     private val tradeRepository: TradeRepository,
+    private val tradeImageService: TradeImageService,
 ) {
     fun list(userId: Long, startDate: String?, endDate: String?, ticker: String?, position: String?, page: Int, size: Int): PageResponse<TradeResponse> {
         val pageable = PageRequest.of(page, size)
@@ -25,8 +27,12 @@ class TradeService(
             position = position,
             pageable = pageable,
         )
+        val trades = result.content
+        val tradeIds = trades.map { it.id }
+        val imagesMap = tradeImageService.getImageMetasByTradeIds(tradeIds, userId)
+
         return PageResponse(
-            content = result.content.map { it.toResponse() },
+            content = trades.map { it.toResponse(imagesMap[it.id] ?: emptyList()) },
             totalElements = result.totalElements,
             totalPages = result.totalPages,
             page = page,
@@ -38,7 +44,8 @@ class TradeService(
         val trade = tradeRepository.findById(id)
             .orElseThrow { IllegalArgumentException("Trade not found") }
         if (trade.userId != userId) throw IllegalArgumentException("Not authorized")
-        return trade.toResponse()
+        val images = tradeImageService.getImageMetas(id, userId)
+        return trade.toResponse(images)
     }
 
     @Transactional
@@ -80,6 +87,7 @@ class TradeService(
         val trade = tradeRepository.findById(id)
             .orElseThrow { IllegalArgumentException("Trade not found") }
         if (trade.userId != userId) throw IllegalArgumentException("Not authorized")
+        tradeImageService.deleteByTradeId(id)
         tradeRepository.delete(trade)
     }
 
@@ -89,19 +97,31 @@ class TradeService(
                 val today = LocalDate.now()
                 tradeRepository.findByUserIdAndTradeDateBetween(userId, today, today)
             }
+            "week" -> {
+                val now = LocalDate.now()
+                tradeRepository.findByUserIdAndTradeDateBetween(userId, now.with(DayOfWeek.MONDAY), now)
+            }
             "month" -> {
                 val now = LocalDate.now()
                 tradeRepository.findByUserIdAndTradeDateBetween(userId, now.withDayOfMonth(1), now)
             }
+            "year" -> {
+                val now = LocalDate.now()
+                tradeRepository.findByUserIdAndTradeDateBetween(userId, now.withDayOfYear(1), now)
+            }
             else -> tradeRepository.findByUserId(userId)
         }
 
+        val buyCount = trades.count { it.position == "BUY" }
+        val sellCount = trades.count { it.position == "SELL" }
         val closed = trades.filter { it.profit != null }
         val wins = closed.filter { it.profit!! > BigDecimal.ZERO }
         val losses = closed.filter { it.profit!! < BigDecimal.ZERO }
 
         return TradeStatsResponse(
-            totalTrades = closed.size,
+            totalTrades = trades.size,
+            buyCount = buyCount,
+            sellCount = sellCount,
             winCount = wins.size,
             lossCount = losses.size,
             winRate = if (closed.isNotEmpty()) wins.size.toDouble() / closed.size * 100 else 0.0,
@@ -114,7 +134,7 @@ class TradeService(
         )
     }
 
-    private fun Trade.toResponse() = TradeResponse(
+    private fun Trade.toResponse(images: List<TradeImageResponse> = emptyList()) = TradeResponse(
         id = id,
         userId = userId,
         tradeDate = tradeDate.toString(),
@@ -127,5 +147,6 @@ class TradeService(
         reason = reason,
         createdAt = createdAt.toString(),
         updatedAt = updatedAt.toString(),
+        images = images,
     )
 }

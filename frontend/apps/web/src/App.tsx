@@ -7,7 +7,6 @@ import LoginPage from '@/pages/LoginPage'
 import RegisterPage from '@/pages/RegisterPage'
 import DashboardPage from '@/pages/DashboardPage'
 import TradeListPage from '@/pages/TradeListPage'
-import TradeFormPage from '@/pages/TradeFormPage'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -32,8 +31,6 @@ export default function App() {
             >
               <Route path="/" element={<DashboardPage />} />
               <Route path="/trades" element={<TradeListPage />} />
-              <Route path="/trades/new" element={<TradeFormPage />} />
-              <Route path="/trades/:id/edit" element={<TradeFormPage />} />
             </Route>
           </Routes>
         </BrowserRouter>

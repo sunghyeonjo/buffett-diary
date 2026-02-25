@@ -1,5 +1,7 @@
 export interface TradeStats {
   totalTrades: number
+  buyCount: number
+  sellCount: number
   winCount: number
   lossCount: number
   winRate: number

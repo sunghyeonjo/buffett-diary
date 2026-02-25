@@ -30,6 +30,16 @@ data class TradeResponse(
     val reason: String?,
     val createdAt: String,
     val updatedAt: String,
+    val images: List<TradeImageResponse> = emptyList(),
+)
+
+data class TradeImageResponse(
+    val id: Long,
+    val tradeId: Long,
+    val fileName: String,
+    val contentType: String,
+    val fileSize: Long,
+    val createdAt: String,
 )
 
 data class PageResponse<T>(
@@ -42,6 +52,8 @@ data class PageResponse<T>(
 
 data class TradeStatsResponse(
     val totalTrades: Int,
+    val buyCount: Int,
+    val sellCount: Int,
     val winCount: Int,
     val lossCount: Int,
     val winRate: Double,

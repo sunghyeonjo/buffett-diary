@@ -1,6 +1,7 @@
 package com.buffettdiary.config
 
 import com.buffettdiary.security.JwtAuthFilter
+import jakarta.servlet.http.HttpServletResponse
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.security.config.annotation.web.builders.HttpSecurity
@@ -30,6 +31,11 @@ class SecurityConfig(
                 it.requestMatchers("/h2-console/**").permitAll()
                 it.anyRequest().authenticated()
             }
+            .exceptionHandling {
+                it.authenticationEntryPoint { _, response, _ ->
+                    response.sendError(HttpServletResponse.SC_UNAUTHORIZED)
+                }
+            }
             .headers { it.frameOptions { fo -> fo.sameOrigin() } }
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter::class.java)
         return http.build()
@@ -43,6 +49,7 @@ class SecurityConfig(
         val config = CorsConfiguration()
         config.allowedOrigins = listOf(
             "http://localhost:5173",
+            "http://localhost:5174",
             "https://buffett-diary.vercel.app"
         )
         config.allowedMethods = listOf("GET", "POST", "PUT", "DELETE", "OPTIONS")
