@@ -19,9 +19,10 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Plus, Pencil, Trash2, ImageIcon, X, Download, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Plus, Pencil, Trash2, ImageIcon, X, Download, ChevronLeft, ChevronRight, List } from 'lucide-react'
 import { TickerCombobox } from '@/components/TickerCombobox'
 import TradeFormModal from '@/components/TradeFormModal'
+import BulkTradeModal from '@/components/BulkTradeModal'
 import TradeForm from '@/components/TradeForm'
 import { TickerLogo } from '@/components/StockLogo'
 
@@ -330,6 +331,7 @@ export default function TradeListPage() {
   const [filter, setFilter] = useState<TradeFilter>(INITIAL_FILTER)
   const [selectedTrade, setSelectedTrade] = useState<Trade | null>(null)
   const [formTradeId, setFormTradeId] = useState<number | 'new' | null>(null)
+  const [bulkOpen, setBulkOpen] = useState(false)
 
   const [period, setPeriod] = useState('')
   const [ticker, setTicker] = useState('')
@@ -462,10 +464,16 @@ export default function TradeListPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">매매 내역</h1>
-        <Button onClick={() => setFormTradeId('new')}>
-          <Plus className="mr-2 h-4 w-4" />
-          새 매매
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setBulkOpen(true)}>
+            <List className="mr-2 h-4 w-4" />
+            일괄 등록
+          </Button>
+          <Button onClick={() => setFormTradeId('new')}>
+            <Plus className="mr-2 h-4 w-4" />
+            새 매매
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -598,6 +606,14 @@ export default function TradeListPage() {
           trade={selectedTrade}
           onClose={() => setSelectedTrade(null)}
           onSaved={() => setSelectedTrade(null)}
+        />
+      )}
+
+      {/* Bulk Trade Modal */}
+      {bulkOpen && (
+        <BulkTradeModal
+          onClose={() => setBulkOpen(false)}
+          onSaved={() => setBulkOpen(false)}
         />
       )}
 

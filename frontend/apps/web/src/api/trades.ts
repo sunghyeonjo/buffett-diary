@@ -11,6 +11,9 @@ export const tradesApi = {
   create(data: TradeRequest) {
     return client.post<Trade>('/trades', data)
   },
+  bulkCreate(data: TradeRequest[]) {
+    return client.post<Trade[]>('/trades/bulk', data)
+  },
   update(id: number, data: TradeRequest) {
     return client.put<Trade>(`/trades/${id}`, data)
   },

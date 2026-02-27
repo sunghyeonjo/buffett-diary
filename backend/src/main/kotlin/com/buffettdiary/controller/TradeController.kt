@@ -43,6 +43,11 @@ class TradeController(
         return ResponseEntity.status(HttpStatus.CREATED).body(tradeService.create(userId(auth), request))
     }
 
+    @PostMapping("/bulk")
+    fun bulkCreate(auth: Authentication, @Valid @RequestBody requests: List<TradeRequest>): ResponseEntity<List<TradeResponse>> {
+        return ResponseEntity.status(HttpStatus.CREATED).body(tradeService.bulkCreate(userId(auth), requests))
+    }
+
     @PutMapping("/{id}")
     fun update(auth: Authentication, @PathVariable id: Long, @Valid @RequestBody request: TradeRequest): ResponseEntity<TradeResponse> {
         return ResponseEntity.ok(tradeService.update(userId(auth), id, request))

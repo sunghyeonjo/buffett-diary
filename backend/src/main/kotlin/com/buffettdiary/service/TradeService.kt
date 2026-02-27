@@ -71,6 +71,25 @@ class TradeService(
 
     @Transactional
     @CacheEvict(value = ["trades", "tradeDetail", "tradeStats"], allEntries = true)
+    fun bulkCreate(userId: Long, requests: List<TradeRequest>): List<TradeResponse> {
+        val trades = requests.map { request ->
+            Trade(
+                userId = userId,
+                tradeDate = LocalDate.parse(request.tradeDate),
+                ticker = request.ticker.uppercase(),
+                position = request.position,
+                quantity = request.quantity,
+                entryPrice = request.entryPrice,
+                exitPrice = request.exitPrice,
+                profit = if (request.position == "SELL") request.profit else null,
+                reason = request.reason,
+            )
+        }
+        return tradeRepository.saveAll(trades).map { it.toResponse() }
+    }
+
+    @Transactional
+    @CacheEvict(value = ["trades", "tradeDetail", "tradeStats"], allEntries = true)
     fun update(userId: Long, id: Long, request: TradeRequest): TradeResponse {
         val trade = tradeRepository.findById(id)
             .orElseThrow { IllegalArgumentException("Trade not found") }
