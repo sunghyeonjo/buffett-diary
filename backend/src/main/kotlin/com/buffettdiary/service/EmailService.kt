@@ -32,8 +32,8 @@ class EmailService(
             )
             mailSender.send(message)
         } catch (e: Exception) {
-            log.error("Failed to send verification email to {}: {}", email, e.message)
-            throw IllegalStateException("이메일 발송에 실패했습니다. 잠시 후 다시 시도해주세요.")
+            log.error("Failed to send verification email to {}: {}", email, e.message, e)
+            throw IllegalStateException("이메일 발송 실패: ${e.message}")
         }
     }
 }
