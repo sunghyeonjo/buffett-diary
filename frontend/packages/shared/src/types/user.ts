@@ -21,3 +21,13 @@ export interface AuthResponse {
   refreshToken: string
   user: User
 }
+
+export interface RegisterResponse {
+  email: string
+  message: string
+}
+
+export interface VerifyEmailRequest {
+  email: string
+  code: string
+}

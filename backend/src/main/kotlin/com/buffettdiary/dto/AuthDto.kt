@@ -35,3 +35,17 @@ data class UserResponse(
     val nickname: String,
     val createdAt: String,
 )
+
+data class RegisterResponse(
+    val email: String,
+    val message: String,
+)
+
+data class VerifyEmailRequest(
+    @field:Email @field:NotBlank val email: String,
+    @field:NotBlank val code: String,
+)
+
+data class ResendCodeRequest(
+    @field:Email @field:NotBlank val email: String,
+)

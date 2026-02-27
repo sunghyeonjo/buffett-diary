@@ -24,6 +24,9 @@ class User(
     @Column(name = "provider_id")
     val providerId: String? = null,
 
+    @Column(name = "email_verified", nullable = false)
+    var emailVerified: Boolean = false,
+
     @Column(name = "created_at", nullable = false, updatable = false)
     val createdAt: LocalDateTime = LocalDateTime.now(),
 
