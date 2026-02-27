@@ -50,6 +50,12 @@ data class PageResponse<T>(
     val size: Int,
 )
 
+data class TradeImageDataResponse(
+    val fileName: String,
+    val contentType: String,
+    val data: ByteArray,
+)
+
 data class TradeStatsResponse(
     val totalTrades: Int,
     val buyCount: Int,

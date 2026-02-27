@@ -26,8 +26,11 @@ class TradeImage(
 
     @Lob
     @Column(nullable = false, columnDefinition = "LONGBLOB")
-    val data: ByteArray,
+    val data: ByteArray = ByteArray(0),
 
     @Column(name = "created_at", nullable = false, updatable = false)
     val createdAt: LocalDateTime = LocalDateTime.now(),
-)
+) {
+    constructor(id: Long, tradeId: Long, userId: Long, fileName: String, contentType: String, fileSize: Long, createdAt: LocalDateTime)
+        : this(id, tradeId, userId, fileName, contentType, fileSize, ByteArray(0), createdAt)
+}

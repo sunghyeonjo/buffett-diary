@@ -1,9 +1,12 @@
 package com.buffettdiary.service
 
+import com.buffettdiary.dto.TradeImageDataResponse
 import com.buffettdiary.dto.TradeImageResponse
 import com.buffettdiary.entity.TradeImage
 import com.buffettdiary.repository.TradeImageRepository
 import com.buffettdiary.repository.TradeRepository
+import org.springframework.cache.annotation.CacheEvict
+import org.springframework.cache.annotation.Cacheable
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.multipart.MultipartFile
@@ -22,6 +25,7 @@ class TradeImageService(
     }
 
     @Transactional
+    @CacheEvict(value = ["trades", "tradeDetail"], allEntries = true)
     fun upload(userId: Long, tradeId: Long, file: MultipartFile): TradeImageResponse {
         val trade = tradeRepository.findById(tradeId)
             .orElseThrow { IllegalArgumentException("Trade not found") }
@@ -51,16 +55,18 @@ class TradeImageService(
         return tradeImageRepository.save(image).toResponse()
     }
 
-    fun getData(userId: Long, tradeId: Long, imageId: Long): TradeImage {
+    @Cacheable(value = ["tradeImageData"], key = "#imageId")
+    fun getData(userId: Long, tradeId: Long, imageId: Long): TradeImageDataResponse {
         val image = tradeImageRepository.findById(imageId)
             .orElseThrow { IllegalArgumentException("Image not found") }
         if (image.tradeId != tradeId || image.userId != userId) {
             throw IllegalArgumentException("Not authorized")
         }
-        return image
+        return TradeImageDataResponse(image.fileName, image.contentType, image.data)
     }
 
     @Transactional
+    @CacheEvict(value = ["trades", "tradeDetail", "tradeImageData"], allEntries = true)
     fun delete(userId: Long, tradeId: Long, imageId: Long) {
         val image = tradeImageRepository.findById(imageId)
             .orElseThrow { IllegalArgumentException("Image not found") }
@@ -72,13 +78,13 @@ class TradeImageService(
 
     fun getImageMetasByTradeIds(tradeIds: List<Long>, userId: Long): Map<Long, List<TradeImageResponse>> {
         if (tradeIds.isEmpty()) return emptyMap()
-        return tradeImageRepository.findByTradeIdInAndUserId(tradeIds, userId)
+        return tradeImageRepository.findMetaByTradeIdInAndUserId(tradeIds, userId)
             .map { it.toResponse() }
             .groupBy { it.tradeId }
     }
 
     fun getImageMetas(tradeId: Long, userId: Long): List<TradeImageResponse> {
-        return tradeImageRepository.findByTradeIdAndUserId(tradeId, userId)
+        return tradeImageRepository.findMetaByTradeIdAndUserId(tradeId, userId)
             .map { it.toResponse() }
     }
 

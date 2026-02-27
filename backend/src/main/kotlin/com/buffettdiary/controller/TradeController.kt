@@ -81,6 +81,7 @@ class TradeController(
         return ResponseEntity.ok()
             .header(HttpHeaders.CONTENT_TYPE, image.contentType)
             .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"${image.fileName}\"")
+            .header(HttpHeaders.CACHE_CONTROL, "public, max-age=86400, immutable")
             .body(image.data)
     }
 

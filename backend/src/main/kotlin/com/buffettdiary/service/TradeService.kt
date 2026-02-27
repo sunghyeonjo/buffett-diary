@@ -3,6 +3,8 @@ package com.buffettdiary.service
 import com.buffettdiary.dto.*
 import com.buffettdiary.entity.Trade
 import com.buffettdiary.repository.TradeRepository
+import org.springframework.cache.annotation.CacheEvict
+import org.springframework.cache.annotation.Cacheable
 import org.springframework.data.domain.PageRequest
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -17,6 +19,7 @@ class TradeService(
     private val tradeRepository: TradeRepository,
     private val tradeImageService: TradeImageService,
 ) {
+    @Cacheable(value = ["trades"], key = "#userId + '-' + #startDate + '-' + #endDate + '-' + #ticker + '-' + #position + '-' + #page + '-' + #size")
     fun list(userId: Long, startDate: String?, endDate: String?, ticker: String?, position: String?, page: Int, size: Int): PageResponse<TradeResponse> {
         val pageable = PageRequest.of(page, size)
         val result = tradeRepository.findByFilters(
@@ -40,6 +43,7 @@ class TradeService(
         )
     }
 
+    @Cacheable(value = ["tradeDetail"], key = "#userId + '-' + #id")
     fun get(userId: Long, id: Long): TradeResponse {
         val trade = tradeRepository.findById(id)
             .orElseThrow { IllegalArgumentException("Trade not found") }
@@ -49,6 +53,7 @@ class TradeService(
     }
 
     @Transactional
+    @CacheEvict(value = ["trades", "tradeDetail", "tradeStats"], allEntries = true)
     fun create(userId: Long, request: TradeRequest): TradeResponse {
         val trade = Trade(
             userId = userId,
@@ -65,6 +70,7 @@ class TradeService(
     }
 
     @Transactional
+    @CacheEvict(value = ["trades", "tradeDetail", "tradeStats"], allEntries = true)
     fun update(userId: Long, id: Long, request: TradeRequest): TradeResponse {
         val trade = tradeRepository.findById(id)
             .orElseThrow { IllegalArgumentException("Trade not found") }
@@ -83,6 +89,7 @@ class TradeService(
     }
 
     @Transactional
+    @CacheEvict(value = ["trades", "tradeDetail", "tradeStats"], allEntries = true)
     fun delete(userId: Long, id: Long) {
         val trade = tradeRepository.findById(id)
             .orElseThrow { IllegalArgumentException("Trade not found") }
@@ -91,6 +98,7 @@ class TradeService(
         tradeRepository.delete(trade)
     }
 
+    @Cacheable(value = ["tradeStats"], key = "#userId + '-' + #period")
     fun stats(userId: Long, period: String): TradeStatsResponse {
         val trades = when (period) {
             "today" -> {
