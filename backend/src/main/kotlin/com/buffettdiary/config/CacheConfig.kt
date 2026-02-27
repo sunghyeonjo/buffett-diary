@@ -1,25 +1,27 @@
 package com.buffettdiary.config
 
-import com.github.benmanes.caffeine.cache.Caffeine
-import org.springframework.cache.CacheManager
 import org.springframework.cache.annotation.EnableCaching
-import org.springframework.cache.caffeine.CaffeineCacheManager
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
-import java.util.concurrent.TimeUnit
+import org.springframework.data.redis.cache.RedisCacheConfiguration
+import org.springframework.data.redis.cache.RedisCacheManager
+import org.springframework.data.redis.connection.RedisConnectionFactory
+import java.time.Duration
 
 @Configuration
 @EnableCaching
 class CacheConfig {
     @Bean
-    fun cacheManager(): CacheManager {
-        val manager = CaffeineCacheManager()
-        manager.setCaffeine(
-            Caffeine.newBuilder()
-                .maximumSize(500)
-                .expireAfterWrite(5, TimeUnit.MINUTES)
-        )
-        manager.setCacheNames(listOf("trades", "tradeDetail", "tradeStats", "tradeImageData"))
-        return manager
+    fun cacheManager(connectionFactory: RedisConnectionFactory): RedisCacheManager {
+        val defaultConfig = RedisCacheConfiguration.defaultCacheConfig()
+            .entryTtl(Duration.ofMinutes(5))
+
+        val imageConfig = RedisCacheConfiguration.defaultCacheConfig()
+            .entryTtl(Duration.ofMinutes(30))
+
+        return RedisCacheManager.builder(connectionFactory)
+            .cacheDefaults(defaultConfig)
+            .withCacheConfiguration("tradeImageData", imageConfig)
+            .build()
     }
 }

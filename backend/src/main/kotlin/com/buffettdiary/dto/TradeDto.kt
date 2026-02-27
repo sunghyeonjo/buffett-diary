@@ -4,6 +4,7 @@ import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.NotNull
 import jakarta.validation.constraints.Positive
 import jakarta.validation.constraints.Size
+import java.io.Serializable
 import java.math.BigDecimal
 
 data class TradeRequest(
@@ -31,7 +32,7 @@ data class TradeResponse(
     val createdAt: String,
     val updatedAt: String,
     val images: List<TradeImageResponse> = emptyList(),
-)
+) : Serializable
 
 data class TradeImageResponse(
     val id: Long,
@@ -40,7 +41,7 @@ data class TradeImageResponse(
     val contentType: String,
     val fileSize: Long,
     val createdAt: String,
-)
+) : Serializable
 
 data class PageResponse<T>(
     val content: List<T>,
@@ -48,13 +49,13 @@ data class PageResponse<T>(
     val totalPages: Int,
     val page: Int,
     val size: Int,
-)
+) : Serializable
 
 data class TradeImageDataResponse(
     val fileName: String,
     val contentType: String,
     val data: ByteArray,
-)
+) : Serializable
 
 data class TradeStatsResponse(
     val totalTrades: Int,
@@ -67,4 +68,4 @@ data class TradeStatsResponse(
     val averageProfit: BigDecimal,
     val bestTrade: BigDecimal,
     val worstTrade: BigDecimal,
-)
+) : Serializable

@@ -22,6 +22,11 @@ spring:
         dialect: org.hibernate.dialect.MySQLDialect
         format_sql: true
     open-in-view: false
+  data:
+    redis:
+      host: crossover.proxy.rlwy.net
+      port: 25429
+      password: jBVEeguTrcsLSzLmMCHfLJjfGbRquwOi
 
 jwt:
   secret: buffett-diary-jwt-secret-key-for-development-only-change-in-production-2024
