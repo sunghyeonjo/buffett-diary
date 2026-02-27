@@ -1,15 +1,15 @@
-import type { AuthResponse, LoginRequest, RegisterRequest, RegisterResponse, VerifyEmailRequest } from '@buffett-diary/shared'
+import type { AuthResponse, LoginRequest, RegisterRequest } from '@buffett-diary/shared'
 import client from './client'
 
 export const authApi = {
+  sendCode(email: string) {
+    return client.post('/auth/send-code', { email })
+  },
+  verifyCode(email: string, code: string) {
+    return client.post('/auth/verify-code', { email, code })
+  },
   register(data: RegisterRequest) {
-    return client.post<RegisterResponse>('/auth/register', data)
-  },
-  verifyEmail(data: VerifyEmailRequest) {
-    return client.post<AuthResponse>('/auth/verify-email', data)
-  },
-  resendCode(email: string) {
-    return client.post('/auth/resend-code', { email })
+    return client.post<AuthResponse>('/auth/register', data)
   },
   login(data: LoginRequest) {
     return client.post<AuthResponse>('/auth/login', data)

@@ -12,20 +12,21 @@ import org.springframework.web.bind.annotation.*
 class AuthController(
     private val authService: AuthService,
 ) {
-    @PostMapping("/register")
-    fun register(@Valid @RequestBody request: RegisterRequest): ResponseEntity<RegisterResponse> {
-        return ResponseEntity.status(HttpStatus.CREATED).body(authService.register(request))
-    }
-
-    @PostMapping("/verify-email")
-    fun verifyEmail(@Valid @RequestBody request: VerifyEmailRequest): ResponseEntity<AuthResponse> {
-        return ResponseEntity.ok(authService.verifyEmail(request))
-    }
-
-    @PostMapping("/resend-code")
-    fun resendCode(@Valid @RequestBody request: ResendCodeRequest): ResponseEntity<Void> {
-        authService.resendCode(request)
+    @PostMapping("/send-code")
+    fun sendCode(@Valid @RequestBody request: SendCodeRequest): ResponseEntity<Void> {
+        authService.sendCode(request)
         return ResponseEntity.ok().build()
+    }
+
+    @PostMapping("/verify-code")
+    fun verifyCode(@Valid @RequestBody request: VerifyCodeRequest): ResponseEntity<Void> {
+        authService.verifyCode(request)
+        return ResponseEntity.ok().build()
+    }
+
+    @PostMapping("/register")
+    fun register(@Valid @RequestBody request: RegisterRequest): ResponseEntity<AuthResponse> {
+        return ResponseEntity.status(HttpStatus.CREATED).body(authService.register(request))
     }
 
     @PostMapping("/login")

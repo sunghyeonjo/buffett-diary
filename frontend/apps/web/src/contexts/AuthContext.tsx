@@ -1,13 +1,12 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react'
-import type { User, LoginRequest, RegisterRequest, VerifyEmailRequest } from '@buffett-diary/shared'
+import type { User, LoginRequest, RegisterRequest } from '@buffett-diary/shared'
 import { authApi } from '@/api/auth'
 
 interface AuthContextType {
   user: User | null
   isLoading: boolean
   login: (data: LoginRequest) => Promise<void>
-  register: (data: RegisterRequest) => Promise<string>
-  verifyEmail: (data: VerifyEmailRequest) => Promise<void>
+  register: (data: RegisterRequest) => Promise<void>
   logout: () => void
 }
 
@@ -38,13 +37,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(res.data.user)
   }, [])
 
-  const register = useCallback(async (data: RegisterRequest): Promise<string> => {
+  const register = useCallback(async (data: RegisterRequest) => {
     const res = await authApi.register(data)
-    return res.data.email
-  }, [])
-
-  const verifyEmail = useCallback(async (data: VerifyEmailRequest) => {
-    const res = await authApi.verifyEmail(data)
     localStorage.setItem('accessToken', res.data.accessToken)
     localStorage.setItem('refreshToken', res.data.refreshToken)
     localStorage.setItem('user', JSON.stringify(res.data.user))
@@ -60,7 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, register, verifyEmail, logout }}>
+    <AuthContext.Provider value={{ user, isLoading, login, register, logout }}>
       {children}
     </AuthContext.Provider>
   )

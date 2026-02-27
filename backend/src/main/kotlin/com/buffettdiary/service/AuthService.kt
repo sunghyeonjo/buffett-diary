@@ -24,48 +24,51 @@ class AuthService(
     private val emailService: EmailService,
 ) {
     @Transactional
-    fun register(request: RegisterRequest): RegisterResponse {
+    fun sendCode(request: SendCodeRequest) {
         if (userRepository.existsByEmail(request.email)) {
-            throw IllegalArgumentException("Email already exists")
+            throw IllegalArgumentException("이미 가입된 이메일입니다.")
         }
-        userRepository.save(
-            User(
+        emailVerificationRepository.deleteByEmail(request.email)
+        val code = String.format("%06d", Random.nextInt(1_000_000))
+        emailVerificationRepository.save(
+            EmailVerification(
                 email = request.email,
-                password = passwordEncoder.encode(request.password),
-                nickname = request.nickname,
+                code = code,
+                expiresAt = LocalDateTime.now().plusMinutes(10),
             )
         )
-        sendVerificationCode(request.email)
-        return RegisterResponse(
-            email = request.email,
-            message = "인증 코드가 이메일로 발송되었습니다.",
-        )
+        emailService.sendVerificationCode(request.email, code)
     }
 
-    @Transactional
-    fun verifyEmail(request: VerifyEmailRequest): AuthResponse {
+    @Transactional(readOnly = true)
+    fun verifyCode(request: VerifyCodeRequest) {
         val verification = emailVerificationRepository.findByEmailAndCode(request.email, request.code)
             ?: throw IllegalArgumentException("잘못된 인증 코드입니다.")
         if (verification.expiresAt.isBefore(LocalDateTime.now())) {
             throw IllegalArgumentException("인증 코드가 만료되었습니다. 재발송해주세요.")
         }
-        val user = userRepository.findByEmail(request.email)
-            ?: throw IllegalArgumentException("User not found")
-        user.emailVerified = true
-        user.updatedAt = LocalDateTime.now()
-        userRepository.save(user)
-        emailVerificationRepository.deleteByEmail(request.email)
-        return createAuthResponse(user)
     }
 
     @Transactional
-    fun resendCode(request: ResendCodeRequest) {
-        val user = userRepository.findByEmail(request.email)
-            ?: throw IllegalArgumentException("User not found")
-        if (user.emailVerified) {
-            throw IllegalArgumentException("이미 인증된 이메일입니다.")
+    fun register(request: RegisterRequest): AuthResponse {
+        val verification = emailVerificationRepository.findByEmailAndCode(request.email, request.code)
+            ?: throw IllegalArgumentException("잘못된 인증 코드입니다.")
+        if (verification.expiresAt.isBefore(LocalDateTime.now())) {
+            throw IllegalArgumentException("인증 코드가 만료되었습니다. 재발송해주세요.")
         }
-        sendVerificationCode(request.email)
+        if (userRepository.existsByEmail(request.email)) {
+            throw IllegalArgumentException("이미 가입된 이메일입니다.")
+        }
+        val user = userRepository.save(
+            User(
+                email = request.email,
+                password = passwordEncoder.encode(request.password),
+                nickname = request.nickname,
+                emailVerified = true,
+            )
+        )
+        emailVerificationRepository.deleteByEmail(request.email)
+        return createAuthResponse(user)
     }
 
     @Transactional
@@ -98,19 +101,6 @@ class AuthService(
     @Transactional
     fun logout(request: LogoutRequest) {
         refreshTokenRepository.deleteByToken(request.refreshToken)
-    }
-
-    private fun sendVerificationCode(email: String) {
-        emailVerificationRepository.deleteByEmail(email)
-        val code = String.format("%06d", Random.nextInt(1_000_000))
-        emailVerificationRepository.save(
-            EmailVerification(
-                email = email,
-                code = code,
-                expiresAt = LocalDateTime.now().plusMinutes(10),
-            )
-        )
-        emailService.sendVerificationCode(email, code)
     }
 
     private fun createAuthResponse(user: User): AuthResponse {

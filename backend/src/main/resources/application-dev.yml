@@ -8,7 +8,6 @@ spring:
       host: ${REDISHOST}
       port: ${REDISPORT}
       password: ${REDISPASSWORD}
-
   mail:
     username: ${MAIL_USERNAME}
     password: ${MAIL_PASSWORD}

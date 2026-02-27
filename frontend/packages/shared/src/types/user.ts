@@ -12,6 +12,7 @@ export interface LoginRequest {
 
 export interface RegisterRequest {
   email: string
+  code: string
   password: string
   nickname: string
 }
@@ -20,14 +21,4 @@ export interface AuthResponse {
   accessToken: string
   refreshToken: string
   user: User
-}
-
-export interface RegisterResponse {
-  email: string
-  message: string
-}
-
-export interface VerifyEmailRequest {
-  email: string
-  code: string
 }
