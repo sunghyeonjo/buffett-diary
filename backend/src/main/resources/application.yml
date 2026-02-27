@@ -28,11 +28,11 @@ spring:
     username: gksrnfl2@gmail.com
     password: labcmefwtsgleshp
     properties:
-      mail:
-        smtp:
-          auth: true
-          starttls:
-            enable: true
+      "mail.smtp.auth": true
+      "mail.smtp.starttls.enable": true
+      "mail.smtp.connectiontimeout": 5000
+      "mail.smtp.timeout": 5000
+      "mail.smtp.writetimeout": 5000
   data:
     redis:
       host: crossover.proxy.rlwy.net
