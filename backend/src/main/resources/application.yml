@@ -22,22 +22,14 @@ spring:
         dialect: org.hibernate.dialect.MySQLDialect
         format_sql: true
     open-in-view: false
-  mail:
-    host: smtp.gmail.com
-    port: 587
-    username: gksrnfl2@gmail.com
-    password: labcmefwtsgleshp
-    properties:
-      "mail.smtp.auth": true
-      "mail.smtp.starttls.enable": true
-      "mail.smtp.connectiontimeout": 5000
-      "mail.smtp.timeout": 5000
-      "mail.smtp.writetimeout": 5000
   data:
     redis:
       host: crossover.proxy.rlwy.net
       port: 25429
       password: jBVEeguTrcsLSzLmMCHfLJjfGbRquwOi
+
+resend:
+  api-key: re_UYM9H1wm_2rPTHBSmTzpgYvq8UBe263R9
 
 jwt:
   secret: buffett-diary-jwt-secret-key-for-development-only-change-in-production-2024
