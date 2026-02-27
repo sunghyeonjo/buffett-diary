@@ -25,7 +25,7 @@ class TradeImage(
     val fileSize: Long,
 
     @Lob
-    @Column(nullable = false)
+    @Column(nullable = false, columnDefinition = "LONGBLOB")
     val data: ByteArray,
 
     @Column(name = "created_at", nullable = false, updatable = false)

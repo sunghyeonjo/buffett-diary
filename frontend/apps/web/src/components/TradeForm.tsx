@@ -180,7 +180,7 @@ export default function TradeForm({ tradeId, compact, onCancel, onSaved }: Trade
     const isBuy = data.position === 'BUY'
     mutation.mutate({
       ...data,
-      ticker: data.ticker.toUpperCase(),
+      ticker: (data.ticker ?? tickerValue).toUpperCase(),
       exitPrice: null,
       profit: isBuy ? null : (data.profit ?? null),
       reason: data.reason || null,

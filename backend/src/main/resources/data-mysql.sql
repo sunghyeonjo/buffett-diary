@@ -105,3 +105,6 @@ INSERT IGNORE INTO stocks (ticker, name_en, name_ko, logo_url) VALUES
 ('SOXX', 'iShares Semiconductor ETF', '반도체 ETF', NULL),
 ('XLF', 'Financial Select Sector SPDR', '금융 섹터 ETF', NULL),
 ('XLE', 'Energy Select Sector SPDR', '에너지 섹터 ETF', NULL);
+
+-- Fix trade_images.data column type for large image uploads
+ALTER TABLE trade_images MODIFY COLUMN data LONGBLOB NOT NULL;
