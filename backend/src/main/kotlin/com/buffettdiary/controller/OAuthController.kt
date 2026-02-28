@@ -2,7 +2,6 @@ package com.buffettdiary.controller
 
 import com.buffettdiary.service.AuthService
 import com.buffettdiary.service.OAuthService
-import jakarta.servlet.http.HttpServletRequest
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
@@ -16,15 +15,12 @@ import java.nio.charset.StandardCharsets
 class OAuthController(
     private val oAuthService: OAuthService,
     private val authService: AuthService,
+    @Value("\${backend.url}") private val backendUrl: String,
     @Value("\${frontend.url}") private val frontendUrl: String,
 ) {
     @GetMapping("/{provider}")
-    fun redirectToProvider(
-        @PathVariable provider: String,
-        request: HttpServletRequest,
-    ): ResponseEntity<Void> {
-        val backendBaseUrl = getBackendBaseUrl(request)
-        val authUrl = oAuthService.getAuthorizationUrl(provider, backendBaseUrl)
+    fun redirectToProvider(@PathVariable provider: String): ResponseEntity<Void> {
+        val authUrl = oAuthService.getAuthorizationUrl(provider, backendUrl)
         return ResponseEntity.status(HttpStatus.FOUND)
             .location(URI.create(authUrl))
             .build()
@@ -34,10 +30,8 @@ class OAuthController(
     fun handleCallback(
         @PathVariable provider: String,
         @RequestParam code: String,
-        request: HttpServletRequest,
     ): ResponseEntity<Void> {
-        val backendBaseUrl = getBackendBaseUrl(request)
-        val userInfo = oAuthService.exchangeCodeForUserInfo(provider, code, backendBaseUrl)
+        val userInfo = oAuthService.exchangeCodeForUserInfo(provider, code, backendUrl)
         val authResponse = authService.findOrCreateOAuthUser(
             email = userInfo.email,
             nickname = userInfo.nickname,
@@ -55,16 +49,5 @@ class OAuthController(
         return ResponseEntity.status(HttpStatus.FOUND)
             .location(URI.create(redirectUrl))
             .build()
-    }
-
-    private fun getBackendBaseUrl(request: HttpServletRequest): String {
-        val scheme = request.getHeader("X-Forwarded-Proto") ?: request.scheme
-        val host = request.getHeader("X-Forwarded-Host") ?: request.serverName
-        val port = request.getHeader("X-Forwarded-Port")?.toIntOrNull() ?: request.serverPort
-        return if ((scheme == "https" && port == 443) || (scheme == "http" && port == 80)) {
-            "$scheme://$host"
-        } else {
-            "$scheme://$host:$port"
-        }
     }
 }
