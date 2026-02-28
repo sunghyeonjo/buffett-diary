@@ -40,6 +40,14 @@ class Trade(
     @Column(columnDefinition = "TEXT")
     var reason: String? = null,
 
+    @Column(columnDefinition = "TEXT")
+    var retrospective: String? = null,
+
+    var rating: Int? = null,
+
+    @Column(name = "retrospective_updated_at")
+    var retrospectiveUpdatedAt: LocalDateTime? = null,
+
     @Column(name = "created_at", nullable = false, updatable = false)
     val createdAt: LocalDateTime = LocalDateTime.now(),
 

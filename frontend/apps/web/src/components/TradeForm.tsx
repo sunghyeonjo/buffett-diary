@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { TradeRequest, TradeImageMeta } from '@buffett-diary/shared'
+import { toDateString } from '@/lib/date'
 import dayjs from 'dayjs'
 import { tradesApi, tradeImagesApi } from '@/api/trades'
 import { Button } from '@/components/ui/button'
@@ -41,7 +42,7 @@ export default function TradeForm({ tradeId, compact, onCancel, onSaved }: Trade
 
   const { register, handleSubmit, reset, watch, setValue, formState: { isSubmitting } } = useForm<TradeRequest & { profit?: number | null }>({
     defaultValues: {
-      tradeDate: dayjs().format('YYYY-MM-DD'),
+      tradeDate: toDateString(dayjs()),
       position: 'BUY',
     },
   })

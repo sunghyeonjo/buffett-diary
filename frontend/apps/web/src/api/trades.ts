@@ -1,4 +1,4 @@
-import type { Trade, TradeRequest, TradeFilter, PageResponse, TradeStats, TradeImageMeta } from '@buffett-diary/shared'
+import type { Trade, TradeRequest, TradeFilter, PageResponse, TradeStats, TradeImageMeta, TradeRetrospectiveRequest } from '@buffett-diary/shared'
 import client from './client'
 
 export const tradesApi = {
@@ -22,6 +22,15 @@ export const tradesApi = {
   },
   stats(period: 'today' | 'week' | 'month' | 'year' | 'all' = 'all') {
     return client.get<TradeStats>('/trades/stats', { params: { period } })
+  },
+}
+
+export const tradeRetrospectiveApi = {
+  update(tradeId: number, data: TradeRetrospectiveRequest) {
+    return client.put<Trade>(`/trades/${tradeId}/retrospective`, data)
+  },
+  delete(tradeId: number) {
+    return client.delete(`/trades/${tradeId}/retrospective`)
   },
 }
 

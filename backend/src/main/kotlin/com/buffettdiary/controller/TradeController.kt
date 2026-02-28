@@ -100,4 +100,21 @@ class TradeController(
         tradeImageService.delete(userId(auth), tradeId, imageId)
         return ResponseEntity.noContent().build()
     }
+
+    // --- Retrospective endpoints ---
+
+    @PutMapping("/{id}/retrospective")
+    fun updateRetrospective(
+        auth: Authentication,
+        @PathVariable id: Long,
+        @Valid @RequestBody request: TradeRetrospectiveRequest,
+    ): ResponseEntity<TradeResponse> {
+        return ResponseEntity.ok(tradeService.updateRetrospective(userId(auth), id, request))
+    }
+
+    @DeleteMapping("/{id}/retrospective")
+    fun deleteRetrospective(auth: Authentication, @PathVariable id: Long): ResponseEntity<Void> {
+        tradeService.deleteRetrospective(userId(auth), id)
+        return ResponseEntity.noContent().build()
+    }
 }

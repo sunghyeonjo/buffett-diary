@@ -20,6 +20,9 @@ export interface Trade {
   exitPrice: number | null
   profit: number | null
   reason: string | null
+  retrospective: string | null
+  rating: number | null
+  retrospectiveUpdatedAt: string | null
   createdAt: string
   updatedAt: string
   images: TradeImageMeta[]
@@ -34,6 +37,11 @@ export interface TradeRequest {
   exitPrice?: number | null
   profit?: number | null
   reason?: string | null
+}
+
+export interface TradeRetrospectiveRequest {
+  content?: string | null
+  rating?: number | null
 }
 
 export interface TradeFilter {

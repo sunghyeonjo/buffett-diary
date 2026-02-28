@@ -162,6 +162,33 @@ class TradeService(
         )
     }
 
+    @Transactional
+    @CacheEvict(value = ["trades", "tradeDetail"], allEntries = true)
+    fun updateRetrospective(userId: Long, id: Long, request: TradeRetrospectiveRequest): TradeResponse {
+        val trade = tradeRepository.findById(id)
+            .orElseThrow { IllegalArgumentException("Trade not found") }
+        if (trade.userId != userId) throw IllegalArgumentException("Not authorized")
+        if (request.rating != null && request.rating !in 1..5) throw IllegalArgumentException("Rating must be 1-5")
+        trade.retrospective = request.content
+        trade.rating = request.rating
+        trade.retrospectiveUpdatedAt = LocalDateTime.now()
+        trade.updatedAt = LocalDateTime.now()
+        return tradeRepository.save(trade).toResponse()
+    }
+
+    @Transactional
+    @CacheEvict(value = ["trades", "tradeDetail"], allEntries = true)
+    fun deleteRetrospective(userId: Long, id: Long) {
+        val trade = tradeRepository.findById(id)
+            .orElseThrow { IllegalArgumentException("Trade not found") }
+        if (trade.userId != userId) throw IllegalArgumentException("Not authorized")
+        trade.retrospective = null
+        trade.rating = null
+        trade.retrospectiveUpdatedAt = null
+        trade.updatedAt = LocalDateTime.now()
+        tradeRepository.save(trade)
+    }
+
     private fun Trade.toResponse(images: List<TradeImageResponse> = emptyList()) = TradeResponse(
         id = id,
         userId = userId,
@@ -173,6 +200,9 @@ class TradeService(
         exitPrice = exitPrice,
         profit = profit,
         reason = reason,
+        retrospective = retrospective,
+        rating = rating,
+        retrospectiveUpdatedAt = retrospectiveUpdatedAt?.toString(),
         createdAt = createdAt.toString(),
         updatedAt = updatedAt.toString(),
         images = images,

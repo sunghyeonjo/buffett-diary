@@ -30,10 +30,17 @@ data class TradeResponse(
     val exitPrice: BigDecimal?,
     val profit: BigDecimal?,
     val reason: String?,
+    val retrospective: String?,
+    val rating: Int?,
+    val retrospectiveUpdatedAt: String?,
     val createdAt: String,
     val updatedAt: String,
     val images: List<TradeImageResponse> = emptyList(),
-) : Serializable
+) : Serializable {
+    companion object {
+        private const val serialVersionUID = 1L
+    }
+}
 
 data class TradeImageResponse(
     val id: Long,
@@ -42,7 +49,11 @@ data class TradeImageResponse(
     val contentType: String,
     val fileSize: Long,
     val createdAt: String,
-) : Serializable
+) : Serializable {
+    companion object {
+        private const val serialVersionUID = 1L
+    }
+}
 
 data class PageResponse<T>(
     val content: List<T>,
@@ -50,13 +61,26 @@ data class PageResponse<T>(
     val totalPages: Int,
     val page: Int,
     val size: Int,
-) : Serializable
+) : Serializable {
+    companion object {
+        private const val serialVersionUID = 1L
+    }
+}
 
 data class TradeImageDataResponse(
     val fileName: String,
     val contentType: String,
     val data: ByteArray,
-) : Serializable
+) : Serializable {
+    companion object {
+        private const val serialVersionUID = 1L
+    }
+}
+
+data class TradeRetrospectiveRequest(
+    @field:Size(max = 1000) val content: String? = null,
+    val rating: Int? = null,
+)
 
 data class TradeStatsResponse(
     val totalTrades: Int,
@@ -69,4 +93,8 @@ data class TradeStatsResponse(
     val averageProfit: BigDecimal,
     val bestTrade: BigDecimal,
     val worstTrade: BigDecimal,
-) : Serializable
+) : Serializable {
+    companion object {
+        private const val serialVersionUID = 1L
+    }
+}

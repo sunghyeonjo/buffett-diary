@@ -6,9 +6,11 @@ import com.buffettdiary.entity.User
 import com.buffettdiary.repository.RefreshTokenRepository
 import com.buffettdiary.repository.UserRepository
 import com.buffettdiary.security.JwtUtil
+import org.springframework.data.redis.core.StringRedisTemplate
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import java.time.Duration
 import java.time.LocalDateTime
 
 @Service
@@ -17,12 +19,59 @@ class AuthService(
     private val refreshTokenRepository: RefreshTokenRepository,
     private val jwtUtil: JwtUtil,
     private val passwordEncoder: PasswordEncoder,
+    private val redisTemplate: StringRedisTemplate,
+    private val emailService: EmailService,
 ) {
-    @Transactional
-    fun register(request: RegisterRequest): AuthResponse {
-        if (userRepository.findByEmail(request.email) != null) {
+    fun sendVerificationCode(email: String) {
+        if (userRepository.existsByEmail(email)) {
             throw IllegalArgumentException("이미 사용 중인 이메일입니다")
         }
+        // 60초 쿨다운
+        val cooldownKey = "verify:cooldown:$email"
+        if (redisTemplate.hasKey(cooldownKey)) {
+            throw IllegalArgumentException("잠시 후 다시 시도해주세요 (60초 제한)")
+        }
+        val code = (100000..999999).random().toString()
+        redisTemplate.opsForValue().set("verify:code:$email", code, Duration.ofMinutes(5))
+        redisTemplate.delete("verify:attempts:$email")
+        redisTemplate.opsForValue().set(cooldownKey, "1", Duration.ofSeconds(60))
+        emailService.sendVerificationCode(email, code)
+    }
+
+    fun verifyCode(email: String, code: String) {
+        val stored = redisTemplate.opsForValue().get("verify:code:$email")
+            ?: throw IllegalArgumentException("인증 코드가 만료되었습니다")
+        // 5회 시도 제한
+        val attemptsKey = "verify:attempts:$email"
+        val attempts = redisTemplate.opsForValue().increment(attemptsKey) ?: 1
+        if (attempts == 1L) {
+            redisTemplate.expire(attemptsKey, Duration.ofMinutes(5))
+        }
+        if (attempts > 5) {
+            redisTemplate.delete("verify:code:$email")
+            redisTemplate.delete(attemptsKey)
+            throw IllegalArgumentException("시도 횟수를 초과했습니다. 인증 코드를 다시 발송해주세요")
+        }
+        if (stored != code) {
+            throw IllegalArgumentException("인증 코드가 올바르지 않습니다 (${5 - attempts}회 남음)")
+        }
+        redisTemplate.delete("verify:code:$email")
+        redisTemplate.delete(attemptsKey)
+        redisTemplate.opsForValue().set("verify:confirmed:$email", "true", Duration.ofMinutes(10))
+    }
+
+    @Transactional
+    fun register(request: RegisterRequest): AuthResponse {
+        if (userRepository.existsByEmail(request.email)) {
+            throw IllegalArgumentException("이미 사용 중인 이메일입니다")
+        }
+        validatePassword(request.password)
+        validateNickname(request.nickname)
+        val verified = redisTemplate.opsForValue().get("verify:confirmed:${request.email}")
+        if (verified != "true") {
+            throw IllegalArgumentException("이메일 인증이 필요합니다")
+        }
+        redisTemplate.delete("verify:confirmed:${request.email}")
         val user = userRepository.save(
             User(
                 email = request.email,
@@ -74,6 +123,35 @@ class AuthService(
     @Transactional
     fun logout(request: LogoutRequest) {
         refreshTokenRepository.deleteByToken(request.refreshToken)
+    }
+
+    fun isNicknameTaken(nickname: String): Boolean {
+        return userRepository.existsByNickname(nickname)
+    }
+
+    private fun validatePassword(password: String) {
+        if (password.length < 8 || password.length > 72) {
+            throw IllegalArgumentException("비밀번호는 8~72자로 입력해주세요")
+        }
+        val hasLetter = password.any { it.isLetter() }
+        val hasDigit = password.any { it.isDigit() }
+        val hasSpecial = password.any { !it.isLetterOrDigit() }
+        val typesCount = listOf(hasLetter, hasDigit, hasSpecial).count { it }
+        if (typesCount < 2) {
+            throw IllegalArgumentException("비밀번호는 영문, 숫자, 특수문자 중 2가지 이상 포함해야 합니다")
+        }
+    }
+
+    private fun validateNickname(nickname: String) {
+        if (nickname.length < 2 || nickname.length > 20) {
+            throw IllegalArgumentException("닉네임은 2~20자로 입력해주세요")
+        }
+        if (!nickname.matches(Regex("^[가-힣a-zA-Z0-9_]+$"))) {
+            throw IllegalArgumentException("닉네임은 한글, 영문, 숫자, 밑줄만 사용할 수 있습니다")
+        }
+        if (userRepository.existsByNickname(nickname)) {
+            throw IllegalArgumentException("이미 사용 중인 닉네임입니다")
+        }
     }
 
     private fun createAuthResponse(user: User): AuthResponse {

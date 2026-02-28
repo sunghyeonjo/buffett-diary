@@ -39,6 +39,9 @@ backend:
 frontend:
   url: ${FRONTEND_URL:http://localhost:5173}
 
+resend:
+  api-key: ${RESEND_API_KEY:}
+
 jwt:
   secret: buffett-diary-jwt-secret-key-for-development-only-change-in-production-2024
   access-expiration: 1800000   # 30 minutes

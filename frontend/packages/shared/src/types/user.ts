@@ -20,4 +20,14 @@ export interface RegisterRequest {
   email: string
   password: string
   nickname: string
+  code: string
+}
+
+export interface SendCodeRequest {
+  email: string
+}
+
+export interface VerifyCodeRequest {
+  email: string
+  code: string
 }

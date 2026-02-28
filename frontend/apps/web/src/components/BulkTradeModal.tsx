@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import type { TradeRequest, Position } from '@buffett-diary/shared'
+import { toDateString } from '@/lib/date'
 import dayjs from 'dayjs'
 import { tradesApi } from '@/api/trades'
 import { Button } from '@/components/ui/button'
@@ -24,7 +25,7 @@ interface RowData {
 function createEmptyRow(id: number): RowData {
   return {
     id,
-    tradeDate: dayjs().format('YYYY-MM-DD'),
+    tradeDate: toDateString(dayjs()),
     ticker: '',
     position: 'BUY',
     quantity: '',

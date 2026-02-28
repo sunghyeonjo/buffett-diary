@@ -4,6 +4,7 @@ import { AuthProvider } from '@/contexts/AuthContext'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import Layout from '@/components/Layout'
 import LoginPage from '@/pages/LoginPage'
+import RegisterPage from '@/pages/RegisterPage'
 import OAuthCallbackPage from '@/pages/OAuthCallbackPage'
 import DashboardPage from '@/pages/DashboardPage'
 import TradeListPage from '@/pages/TradeListPage'
@@ -21,6 +22,7 @@ export default function App() {
         <BrowserRouter>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegisterPage />} />
             <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
             <Route
               element={

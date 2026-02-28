@@ -8,7 +8,8 @@ import {
 } from '@tanstack/react-table'
 import type { Trade, TradeFilter } from '@buffett-diary/shared'
 import dayjs from 'dayjs'
-import { tradesApi, tradeImagesApi } from '@/api/trades'
+import { tradesApi, tradeImagesApi, tradeRetrospectiveApi } from '@/api/trades'
+import { formatDate, formatDateTime, toDateString } from '@/lib/date'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -19,7 +20,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Plus, Pencil, Trash2, ImageIcon, X, Download, ChevronLeft, ChevronRight, List } from 'lucide-react'
+import { Plus, Pencil, Trash2, ImageIcon, X, Download, ChevronLeft, ChevronRight, List, MessageSquareText } from 'lucide-react'
 import { TickerCombobox } from '@/components/TickerCombobox'
 import TradeFormModal from '@/components/TradeFormModal'
 import BulkTradeModal from '@/components/BulkTradeModal'
@@ -114,11 +115,42 @@ function ImageViewer({
 
 // --- Detail Side Panel ---
 
+const RATING_LABELS = ['최악', '나쁨', '보통', '좋음', '훌륭함'] as const
+const RATING_COLORS = [
+  'border-red-300 bg-red-50 text-red-700',
+  'border-orange-300 bg-orange-50 text-orange-700',
+  'border-gray-300 bg-gray-50 text-gray-700',
+  'border-blue-300 bg-blue-50 text-blue-700',
+  'border-green-300 bg-green-50 text-green-700',
+] as const
+
 function TradeDetailPanel({ trade, onClose, onSaved }: { trade: Trade; onClose: () => void; onSaved: () => void }) {
+  const queryClient = useQueryClient()
   const [imageUrls, setImageUrls] = useState<Map<number, string>>(new Map())
   const [viewerIndex, setViewerIndex] = useState<number | null>(null)
   const [editing, setEditing] = useState(false)
   const [selectedImageIndex, setSelectedImageIndex] = useState(0)
+  const [retroEditing, setRetroEditing] = useState(false)
+  const [retroContent, setRetroContent] = useState(trade.retrospective ?? '')
+  const [retroRating, setRetroRating] = useState<number | null>(trade.rating)
+
+  const retroMutation = useMutation({
+    mutationFn: () => tradeRetrospectiveApi.update(trade.id, { content: retroContent.trim() || null, rating: retroRating }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['trades'] })
+      setRetroEditing(false)
+    },
+  })
+
+  const retroDeleteMutation = useMutation({
+    mutationFn: () => tradeRetrospectiveApi.delete(trade.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['trades'] })
+      setRetroContent('')
+      setRetroRating(null)
+      setRetroEditing(false)
+    },
+  })
 
   const loadImages = useCallback(async () => {
     if (!trade.images?.length) return
@@ -170,7 +202,7 @@ function TradeDetailPanel({ trade, onClose, onSaved }: { trade: Trade; onClose: 
             <TickerLogo ticker={trade.ticker} className="h-8 w-8" />
             <div>
               <h2 className="text-lg font-semibold font-mono">{trade.ticker}</h2>
-              <p className="text-sm text-muted-foreground">{dayjs(trade.tradeDate).format('YYYY-MM-DD')}</p>
+              <p className="text-sm text-muted-foreground">{formatDate(trade.tradeDate)}</p>
             </div>
           </div>
           <button onClick={onClose} className="rounded-md p-1 hover:bg-muted">
@@ -289,6 +321,121 @@ function TradeDetailPanel({ trade, onClose, onSaved }: { trade: Trade; onClose: 
                   </div>
                 )
               })()}
+
+              {/* Retrospective (회고) */}
+              <div>
+                <div className="mb-2 flex items-center justify-between">
+                  <h3 className="text-sm font-medium text-muted-foreground">회고</h3>
+                  {!retroEditing && (trade.retrospective || trade.rating != null) && (
+                    <div className="flex gap-1">
+                      <button
+                        className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                        onClick={() => {
+                          setRetroContent(trade.retrospective ?? '')
+                          setRetroRating(trade.rating)
+                          setRetroEditing(true)
+                        }}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-destructive"
+                        onClick={() => {
+                          if (confirm('회고를 삭제하시겠습니까?')) retroDeleteMutation.mutate()
+                        }}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {retroEditing ? (
+                  <div className="space-y-3 rounded-lg border bg-muted/30 p-3">
+                    {/* Rating */}
+                    <div>
+                      <p className="mb-1.5 text-xs text-muted-foreground">매매 평가</p>
+                      <div className="flex gap-1">
+                        {RATING_LABELS.map((label, i) => {
+                          const value = i + 1
+                          const selected = retroRating === value
+                          return (
+                            <button
+                              key={value}
+                              onClick={() => setRetroRating(selected ? null : value)}
+                              className={`rounded-md border px-2 py-1 text-xs font-medium transition-colors ${
+                                selected ? RATING_COLORS[i] : 'border-transparent text-muted-foreground hover:bg-muted'
+                              }`}
+                            >
+                              {label}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Content */}
+                    <textarea
+                      value={retroContent}
+                      onChange={(e) => setRetroContent(e.target.value)}
+                      placeholder="이 매매에 대해 돌아보며 느낀 점을 적어보세요..."
+                      maxLength={1000}
+                      rows={3}
+                      className="w-full resize-none rounded-md border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                    />
+
+                    {/* Actions */}
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setRetroEditing(false)
+                          setRetroContent(trade.retrospective ?? '')
+                          setRetroRating(trade.rating)
+                        }}
+                      >
+                        취소
+                      </Button>
+                      <Button
+                        size="sm"
+                        disabled={(!retroContent.trim() && retroRating == null) || retroMutation.isPending}
+                        onClick={() => retroMutation.mutate()}
+                      >
+                        저장
+                      </Button>
+                    </div>
+                  </div>
+                ) : trade.retrospective || trade.rating != null ? (
+                  <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      {trade.rating != null && (
+                        <Badge
+                          variant="outline"
+                          className={RATING_COLORS[trade.rating - 1]}
+                        >
+                          {RATING_LABELS[trade.rating - 1]}
+                        </Badge>
+                      )}
+                      {trade.retrospectiveUpdatedAt && (
+                        <span className="text-xs text-muted-foreground">
+                          {formatDateTime(trade.retrospectiveUpdatedAt!)}
+                        </span>
+                      )}
+                    </div>
+                    {trade.retrospective && (
+                      <p className="whitespace-pre-wrap text-sm leading-relaxed">{trade.retrospective}</p>
+                    )}
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setRetroEditing(true)}
+                    className="w-full rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground transition-colors hover:border-primary/30 hover:bg-muted/30 hover:text-foreground"
+                  >
+                    매매 회고를 작성해보세요
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Footer */}
@@ -344,10 +491,10 @@ export default function TradeListPage() {
   const periodToDates = (p: string): { startDate?: string; endDate?: string } => {
     if (!p) return { startDate: undefined, endDate: undefined }
     const today = dayjs()
-    const end = today.format('YYYY-MM-DD')
+    const end = toDateString(today)
     if (p === 'today') return { startDate: end, endDate: end }
-    if (p === 'week') return { startDate: today.startOf('week').add(1, 'day').format('YYYY-MM-DD'), endDate: end }
-    if (p === 'month') return { startDate: today.startOf('month').format('YYYY-MM-DD'), endDate: end }
+    if (p === 'week') return { startDate: toDateString(today.startOf('week').add(1, 'day')), endDate: end }
+    if (p === 'month') return { startDate: toDateString(today.startOf('month')), endDate: end }
     return { startDate: undefined, endDate: undefined }
   }
 
@@ -376,7 +523,7 @@ export default function TradeListPage() {
   const columns = [
     columnHelper.accessor('tradeDate', {
       header: '날짜',
-      cell: (info) => dayjs(info.getValue()).format('YYYY-MM-DD'),
+      cell: (info) => formatDate(info.getValue()),
     }),
     columnHelper.accessor('ticker', {
       header: '종목',

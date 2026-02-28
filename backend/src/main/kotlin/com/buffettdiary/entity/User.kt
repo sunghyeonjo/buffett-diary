@@ -15,7 +15,7 @@ class User(
     @Column(nullable = true)
     var password: String? = null,
 
-    @Column(length = 50, nullable = false)
+    @Column(length = 20, unique = true, nullable = false)
     var nickname: String,
 
     @Column(length = 20, nullable = false)
