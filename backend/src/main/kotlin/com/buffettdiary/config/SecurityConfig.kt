@@ -50,7 +50,7 @@ class SecurityConfig(
         config.allowedOrigins = listOf(
             "http://localhost:5173",
             "http://localhost:5174",
-            "https://buffett-diary.vercel.app"
+            "https://dayed.vercel.app"
         )
         config.allowedMethods = listOf("GET", "POST", "PUT", "DELETE", "OPTIONS")
         config.allowedHeaders = listOf("*")
