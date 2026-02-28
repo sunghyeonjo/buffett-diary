@@ -1,12 +1,10 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react'
-import type { User, LoginRequest, RegisterRequest } from '@buffett-diary/shared'
+import type { User } from '@buffett-diary/shared'
 import { authApi } from '@/api/auth'
 
 interface AuthContextType {
   user: User | null
   isLoading: boolean
-  login: (data: LoginRequest) => Promise<void>
-  register: (data: RegisterRequest) => Promise<void>
   logout: () => void
 }
 
@@ -29,22 +27,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsLoading(false)
   }, [])
 
-  const login = useCallback(async (data: LoginRequest) => {
-    const res = await authApi.login(data)
-    localStorage.setItem('accessToken', res.data.accessToken)
-    localStorage.setItem('refreshToken', res.data.refreshToken)
-    localStorage.setItem('user', JSON.stringify(res.data.user))
-    setUser(res.data.user)
-  }, [])
-
-  const register = useCallback(async (data: RegisterRequest) => {
-    const res = await authApi.register(data)
-    localStorage.setItem('accessToken', res.data.accessToken)
-    localStorage.setItem('refreshToken', res.data.refreshToken)
-    localStorage.setItem('user', JSON.stringify(res.data.user))
-    setUser(res.data.user)
-  }, [])
-
   const logout = useCallback(() => {
     authApi.logout().catch(() => {})
     localStorage.removeItem('accessToken')
@@ -54,7 +36,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, isLoading, logout }}>
       {children}
     </AuthContext.Provider>
   )

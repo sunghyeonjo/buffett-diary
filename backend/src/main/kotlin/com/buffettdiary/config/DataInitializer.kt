@@ -6,7 +6,6 @@ import com.buffettdiary.repository.TradeRepository
 import com.buffettdiary.repository.UserRepository
 import org.springframework.boot.CommandLineRunner
 import org.springframework.context.annotation.Profile
-import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Component
 import java.math.BigDecimal
 import java.time.LocalDate
@@ -16,7 +15,6 @@ import java.time.LocalDate
 class DataInitializer(
     private val userRepository: UserRepository,
     private val tradeRepository: TradeRepository,
-    private val passwordEncoder: PasswordEncoder,
 ) : CommandLineRunner {
 
     override fun run(vararg args: String?) {
@@ -25,8 +23,8 @@ class DataInitializer(
         val user = userRepository.save(
             User(
                 email = "demo@buffett.com",
-                password = passwordEncoder.encode("demo1234"),
                 nickname = "데모유저",
+                provider = "DEMO",
             )
         )
         val uid = user.id

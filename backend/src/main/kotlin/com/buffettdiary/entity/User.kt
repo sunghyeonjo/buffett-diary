@@ -12,8 +12,8 @@ class User(
     @Column(unique = true, nullable = false)
     val email: String,
 
-    @Column(nullable = false)
-    var password: String,
+    @Column(nullable = true)
+    var password: String? = null,
 
     @Column(length = 50, nullable = false)
     var nickname: String,
@@ -23,9 +23,6 @@ class User(
 
     @Column(name = "provider_id")
     val providerId: String? = null,
-
-    @Column(name = "email_verified", nullable = false)
-    var emailVerified: Boolean = false,
 
     @Column(name = "created_at", nullable = false, updatable = false)
     val createdAt: LocalDateTime = LocalDateTime.now(),

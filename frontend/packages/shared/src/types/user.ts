@@ -5,18 +5,6 @@ export interface User {
   createdAt: string
 }
 
-export interface LoginRequest {
-  email: string
-  password: string
-}
-
-export interface RegisterRequest {
-  email: string
-  code: string
-  password: string
-  nickname: string
-}
-
 export interface AuthResponse {
   accessToken: string
   refreshToken: string
