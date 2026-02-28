@@ -1,6 +1,7 @@
 package com.buffettdiary.controller
 
 import com.buffettdiary.dto.*
+import com.buffettdiary.enums.Position
 import com.buffettdiary.service.TradeImageService
 import com.buffettdiary.service.TradeService
 import jakarta.validation.Valid
@@ -26,7 +27,7 @@ class TradeController(
         @RequestParam(required = false) startDate: String?,
         @RequestParam(required = false) endDate: String?,
         @RequestParam(required = false) ticker: String?,
-        @RequestParam(required = false) position: String?,
+        @RequestParam(required = false) position: Position?,
         @RequestParam(defaultValue = "0") page: Int,
         @RequestParam(defaultValue = "20") size: Int,
     ): ResponseEntity<PageResponse<TradeResponse>> {

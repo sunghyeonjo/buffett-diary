@@ -1,5 +1,6 @@
 package com.buffettdiary.dto
 
+import com.buffettdiary.enums.Position
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.NotNull
 import jakarta.validation.constraints.Positive
@@ -10,7 +11,7 @@ import java.math.BigDecimal
 data class TradeRequest(
     @field:NotBlank val tradeDate: String,
     @field:NotBlank @field:Size(max = 10) val ticker: String,
-    @field:NotBlank val position: String, // BUY or SELL
+    @field:NotNull val position: Position, // BUY or SELL
     @field:NotNull @field:Positive val quantity: BigDecimal,
     @field:NotNull @field:Positive val entryPrice: BigDecimal,
     val exitPrice: BigDecimal? = null,
@@ -23,7 +24,7 @@ data class TradeResponse(
     val userId: Long,
     val tradeDate: String,
     val ticker: String,
-    val position: String,
+    val position: Position,
     val quantity: BigDecimal,
     val entryPrice: BigDecimal,
     val exitPrice: BigDecimal?,

@@ -4,10 +4,10 @@ spring:
       max-file-size: 5MB
       max-request-size: 5MB
   datasource:
-    url: jdbc:mysql://trolley.proxy.rlwy.net:50816/railway?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+    url: jdbc:mysql://switchback.proxy.rlwy.net:21935/railway?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
     driver-class-name: com.mysql.cj.jdbc.Driver
     username: root
-    password: onTniOdDvNtevjUNncEJMPvZtwbgNrmq
+    password: ExzjvEDybIVuEIjFKqRvDbMxxqzLesWD
   sql:
     init:
       mode: always
@@ -24,17 +24,14 @@ spring:
     open-in-view: false
   data:
     redis:
-      host: crossover.proxy.rlwy.net
-      port: 25429
-      password: jBVEeguTrcsLSzLmMCHfLJjfGbRquwOi
+      host: turntable.proxy.rlwy.net
+      port: 26522
+      password: GAPhXUkOuxPLfsAlgLTcorlDRxcFmMtD
 
 oauth2:
   google:
     client-id: ${GOOGLE_CLIENT_ID:}
     client-secret: ${GOOGLE_CLIENT_SECRET:}
-  naver:
-    client-id: ${NAVER_CLIENT_ID:}
-    client-secret: ${NAVER_CLIENT_SECRET:}
 
 backend:
   url: ${BACKEND_URL:http://localhost:8080}

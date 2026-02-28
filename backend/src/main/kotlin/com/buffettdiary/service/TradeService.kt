@@ -2,6 +2,7 @@ package com.buffettdiary.service
 
 import com.buffettdiary.dto.*
 import com.buffettdiary.entity.Trade
+import com.buffettdiary.enums.Position
 import com.buffettdiary.repository.TradeRepository
 import org.springframework.cache.annotation.CacheEvict
 import org.springframework.cache.annotation.Cacheable
@@ -20,7 +21,7 @@ class TradeService(
     private val tradeImageService: TradeImageService,
 ) {
     @Cacheable(value = ["trades"], key = "#userId + '-' + #startDate + '-' + #endDate + '-' + #ticker + '-' + #position + '-' + #page + '-' + #size")
-    fun list(userId: Long, startDate: String?, endDate: String?, ticker: String?, position: String?, page: Int, size: Int): PageResponse<TradeResponse> {
+    fun list(userId: Long, startDate: String?, endDate: String?, ticker: String?, position: Position?, page: Int, size: Int): PageResponse<TradeResponse> {
         val pageable = PageRequest.of(page, size)
         val result = tradeRepository.findByFilters(
             userId = userId,
@@ -63,7 +64,7 @@ class TradeService(
             quantity = request.quantity,
             entryPrice = request.entryPrice,
             exitPrice = request.exitPrice,
-            profit = if (request.position == "SELL") request.profit else null,
+            profit = if (request.position.isSell()) request.profit else null,
             reason = request.reason,
         )
         return tradeRepository.save(trade).toResponse()
@@ -81,7 +82,7 @@ class TradeService(
                 quantity = request.quantity,
                 entryPrice = request.entryPrice,
                 exitPrice = request.exitPrice,
-                profit = if (request.position == "SELL") request.profit else null,
+                profit = if (request.position.isSell()) request.profit else null,
                 reason = request.reason,
             )
         }
@@ -100,7 +101,7 @@ class TradeService(
         trade.quantity = request.quantity
         trade.entryPrice = request.entryPrice
         trade.exitPrice = request.exitPrice
-        trade.profit = if (request.position == "SELL") request.profit else null
+        trade.profit = if (request.position.isSell()) request.profit else null
         trade.reason = request.reason
         trade.updatedAt = LocalDateTime.now()
 
@@ -139,8 +140,8 @@ class TradeService(
             else -> tradeRepository.findByUserId(userId)
         }
 
-        val buyCount = trades.count { it.position == "BUY" }
-        val sellCount = trades.count { it.position == "SELL" }
+        val buyCount = trades.count { it.position.isBuy() }
+        val sellCount = trades.count { it.position.isSell() }
         val closed = trades.filter { it.profit != null }
         val wins = closed.filter { it.profit!! > BigDecimal.ZERO }
         val losses = closed.filter { it.profit!! < BigDecimal.ZERO }

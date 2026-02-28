@@ -1,5 +1,6 @@
 package com.buffettdiary.entity
 
+import com.buffettdiary.enums.Position
 import jakarta.persistence.*
 import java.math.BigDecimal
 import java.time.LocalDate
@@ -20,8 +21,9 @@ class Trade(
     @Column(length = 10, nullable = false)
     var ticker: String,
 
-    @Column(length = 4, nullable = false)
-    var position: String,
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    var position: Position,
 
     @Column(precision = 12, scale = 6, nullable = false)
     var quantity: BigDecimal,

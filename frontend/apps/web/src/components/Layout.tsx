@@ -18,7 +18,7 @@ export default function Layout() {
       {/* Sidebar */}
       <aside className="hidden w-60 flex-col border-r bg-card p-4 md:flex">
         <div className="mb-8">
-          <h1 className="text-lg font-bold">Buffett Diary</h1>
+          <img src="/logo.svg" alt="dayed" className="h-8" />
           <p className="text-xs text-muted-foreground">{user?.nickname}</p>
         </div>
         <nav className="flex flex-1 flex-col gap-1">
@@ -48,7 +48,7 @@ export default function Layout() {
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Mobile header */}
         <header className="flex items-center justify-between border-b p-4 md:hidden">
-          <h1 className="text-lg font-bold">Buffett Diary</h1>
+          <img src="/logo.svg" alt="dayed" className="h-7" />
           <Button variant="ghost" size="sm" onClick={logout}>
             <LogOut className="h-4 w-4" />
           </Button>

@@ -5,7 +5,6 @@ import org.springframework.boot.context.properties.ConfigurationProperties
 @ConfigurationProperties(prefix = "oauth2")
 data class OAuth2Properties(
     val google: ProviderProperties = ProviderProperties(),
-    val naver: ProviderProperties = ProviderProperties(),
 ) {
     data class ProviderProperties(
         val clientId: String = "",

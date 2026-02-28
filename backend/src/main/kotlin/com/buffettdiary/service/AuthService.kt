@@ -6,6 +6,7 @@ import com.buffettdiary.entity.User
 import com.buffettdiary.repository.RefreshTokenRepository
 import com.buffettdiary.repository.UserRepository
 import com.buffettdiary.security.JwtUtil
+import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.LocalDateTime
@@ -15,7 +16,33 @@ class AuthService(
     private val userRepository: UserRepository,
     private val refreshTokenRepository: RefreshTokenRepository,
     private val jwtUtil: JwtUtil,
+    private val passwordEncoder: PasswordEncoder,
 ) {
+    @Transactional
+    fun register(request: RegisterRequest): AuthResponse {
+        if (userRepository.findByEmail(request.email) != null) {
+            throw IllegalArgumentException("이미 사용 중인 이메일입니다")
+        }
+        val user = userRepository.save(
+            User(
+                email = request.email,
+                password = passwordEncoder.encode(request.password),
+                nickname = request.nickname,
+                provider = "LOCAL",
+            )
+        )
+        return createAuthResponse(user)
+    }
+
+    @Transactional
+    fun login(request: LoginRequest): AuthResponse {
+        val user = userRepository.findByEmail(request.email)
+            ?: throw IllegalArgumentException("이메일 또는 비밀번호가 올바르지 않습니다")
+        if (user.password == null || !passwordEncoder.matches(request.password, user.password)) {
+            throw IllegalArgumentException("이메일 또는 비밀번호가 올바르지 않습니다")
+        }
+        return createAuthResponse(user)
+    }
     @Transactional
     fun findOrCreateOAuthUser(email: String, nickname: String, provider: String, providerId: String): AuthResponse {
         val user = userRepository.findByEmail(email)

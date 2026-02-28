@@ -1,6 +1,7 @@
 package com.buffettdiary.repository
 
 import com.buffettdiary.entity.Trade
+import com.buffettdiary.enums.Position
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.data.jpa.repository.JpaRepository
@@ -23,7 +24,7 @@ interface TradeRepository : JpaRepository<Trade, Long> {
         startDate: LocalDate?,
         endDate: LocalDate?,
         ticker: String?,
-        position: String?,
+        position: Position?,
         pageable: Pageable,
     ): Page<Trade>
 
