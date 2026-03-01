@@ -24,4 +24,7 @@ class User(
 
     @Column(name = "provider_id")
     val providerId: String? = null,
+
+    @Column(length = 200)
+    var bio: String? = null,
 ) : AuditEntity()

@@ -30,4 +30,5 @@ interface TradeRepository : JpaRepository<Trade, Long> {
 
     fun findByUserIdAndTradeDateBetween(userId: Long, start: LocalDate, end: LocalDate): List<Trade>
     fun findByUserId(userId: Long): List<Trade>
+    fun findByUserIdInOrderByCreatedAtDesc(userIds: List<Long>, pageable: Pageable): Page<Trade>
 }

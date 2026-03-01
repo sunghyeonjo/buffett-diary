@@ -2,7 +2,29 @@ export interface User {
   id: number
   email: string
   nickname: string
+  bio: string | null
   createdAt: string
+}
+
+export interface UserProfile {
+  id: number
+  nickname: string
+  bio: string | null
+  createdAt: string
+  followerCount: number
+  followingCount: number
+  isFollowing: boolean
+  isOwnProfile: boolean
+}
+
+export interface UserSearchResult {
+  id: number
+  nickname: string
+  bio: string | null
+}
+
+export interface UpdateProfileRequest {
+  bio?: string | null
 }
 
 export interface AuthResponse {

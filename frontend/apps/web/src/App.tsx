@@ -8,6 +8,11 @@ import RegisterPage from '@/pages/RegisterPage'
 import OAuthCallbackPage from '@/pages/OAuthCallbackPage'
 import DashboardPage from '@/pages/DashboardPage'
 import TradeListPage from '@/pages/TradeListPage'
+import JournalListPage from '@/pages/JournalListPage'
+import UserSearchPage from '@/pages/UserSearchPage'
+import UserProfilePage from '@/pages/UserProfilePage'
+import FeedPage from '@/pages/FeedPage'
+import MyPage from '@/pages/MyPage'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -33,6 +38,11 @@ export default function App() {
             >
               <Route path="/" element={<DashboardPage />} />
               <Route path="/trades" element={<TradeListPage />} />
+              <Route path="/journals" element={<JournalListPage />} />
+              <Route path="/feed" element={<FeedPage />} />
+              <Route path="/mypage" element={<MyPage />} />
+              <Route path="/search" element={<UserSearchPage />} />
+              <Route path="/users/:userId" element={<UserProfilePage />} />
             </Route>
           </Routes>
         </BrowserRouter>

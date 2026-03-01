@@ -6,6 +6,7 @@ import com.buffettdiary.entity.TradeImage
 import com.buffettdiary.exception.BadRequestException
 import com.buffettdiary.exception.ForbiddenException
 import com.buffettdiary.exception.NotFoundException
+import com.buffettdiary.repository.FollowRepository
 import com.buffettdiary.repository.TradeImageMeta
 import com.buffettdiary.repository.TradeImageRepository
 import com.buffettdiary.repository.TradeRepository
@@ -19,6 +20,7 @@ import org.springframework.web.multipart.MultipartFile
 class TradeImageService(
     private val tradeImageRepository: TradeImageRepository,
     private val tradeRepository: TradeRepository,
+    private val followRepository: FollowRepository,
 ) {
     companion object {
         const val MAX_IMAGES_PER_TRADE = 5
@@ -63,7 +65,8 @@ class TradeImageService(
     fun getData(userId: Long, tradeId: Long, imageId: Long): TradeImageDataResponse {
         val image = tradeImageRepository.findById(imageId)
             .orElseThrow { NotFoundException("Image not found") }
-        if (image.tradeId != tradeId || image.userId != userId) {
+        if (image.tradeId != tradeId) throw ForbiddenException("Not authorized")
+        if (image.userId != userId && !followRepository.existsByFollowerIdAndFollowingId(userId, image.userId)) {
             throw ForbiddenException("Not authorized")
         }
         return TradeImageDataResponse(image.fileName, image.contentType, image.data)

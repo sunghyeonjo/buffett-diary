@@ -176,6 +176,7 @@ class AuthService(
                 id = user.id,
                 email = user.email,
                 nickname = user.nickname,
+                bio = user.bio,
                 createdAt = user.createdAt.toString(),
             ),
         )

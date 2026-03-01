@@ -19,9 +19,13 @@ class CacheConfig {
         val stocksConfig = RedisCacheConfiguration.defaultCacheConfig()
             .entryTtl(Duration.ofHours(24))
 
+        val followCountsConfig = RedisCacheConfiguration.defaultCacheConfig()
+            .entryTtl(Duration.ofMinutes(1))
+
         return RedisCacheManager.builder(connectionFactory)
             .cacheDefaults(defaultConfig)
             .withCacheConfiguration("stocks", stocksConfig)
+            .withCacheConfiguration("followCounts", followCountsConfig)
             .build()
     }
 }
