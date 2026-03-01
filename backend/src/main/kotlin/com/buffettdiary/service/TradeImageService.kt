@@ -60,7 +60,6 @@ class TradeImageService(
     }
 
     @Transactional(readOnly = true)
-    @Cacheable(value = ["tradeImageData"], key = "#imageId")
     fun getData(userId: Long, tradeId: Long, imageId: Long): TradeImageDataResponse {
         val image = tradeImageRepository.findById(imageId)
             .orElseThrow { NotFoundException("Image not found") }
@@ -71,7 +70,7 @@ class TradeImageService(
     }
 
     @Transactional
-    @CacheEvict(value = ["trades", "tradeDetail", "tradeImageData"], allEntries = true)
+    @CacheEvict(value = ["trades", "tradeDetail"], allEntries = true)
     fun delete(userId: Long, tradeId: Long, imageId: Long) {
         val image = tradeImageRepository.findById(imageId)
             .orElseThrow { NotFoundException("Image not found") }
