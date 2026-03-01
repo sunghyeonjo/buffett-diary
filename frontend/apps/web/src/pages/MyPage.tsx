@@ -6,17 +6,16 @@ import { useAuth } from '@/contexts/AuthContext'
 import { usersApi } from '@/api/users'
 import { followsApi } from '@/api/follows'
 import { journalImagesApi } from '@/api/journals'
-import { feedApi } from '@/api/feed'
 import { formatDate } from '@/lib/date'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Pencil, ImageIcon, Settings, Grid3x3, BookOpen, Users, Rss, UserPlus, UserMinus, X } from 'lucide-react'
+import { ImageIcon, Settings, Grid3x3, BookOpen, X, LogOut } from 'lucide-react'
 import EditProfileModal from '@/components/EditProfileModal'
 
-type Tab = 'journals' | 'trades' | 'feed'
+type Tab = 'journals' | 'trades'
 
 export default function MyPage() {
-  const { user } = useAuth()
+  const { user, logout } = useAuth()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [tab, setTab] = useState<Tab>('journals')
@@ -43,66 +42,60 @@ export default function MyPage() {
     enabled: userId > 0 && tab === 'trades',
   })
 
-  const { data: feed } = useQuery({
-    queryKey: ['feed', 0],
-    queryFn: () => feedApi.list(0, 20).then((r) => r.data),
-    enabled: tab === 'feed',
-  })
-
   if (!user) return null
 
   const initial = user.nickname.charAt(0).toUpperCase()
 
   return (
     <div className="mx-auto max-w-2xl">
-      {/* Profile Header — Instagram style */}
-      <div className="flex items-center gap-6 px-4 py-6 sm:gap-10">
+      {/* Profile Header */}
+      <div className="flex items-start gap-5 py-4 sm:gap-8">
         {/* Avatar */}
         <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary/80 to-primary text-3xl font-bold text-primary-foreground sm:h-24 sm:w-24">
           {initial}
         </div>
 
         {/* Info */}
-        <div className="flex-1">
-          <div className="flex items-center gap-3">
+        <div className="flex-1 pt-1">
+          <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-xl font-semibold">{user.nickname}</h1>
-            <Button variant="outline" size="sm" onClick={() => setEditingProfile(true)}>
+            <Button variant="outline" size="sm" className="h-8" onClick={() => setEditingProfile(true)}>
               <Settings className="mr-1.5 h-3.5 w-3.5" />
-              프로필 편집
+              편집
+            </Button>
+            <Button variant="ghost" size="sm" className="h-8 text-muted-foreground md:hidden" onClick={logout}>
+              <LogOut className="h-3.5 w-3.5" />
             </Button>
           </div>
 
-          {/* Stats row */}
-          <div className="mt-4 flex gap-6 text-sm">
-            <div className="text-center">
-              <span className="font-semibold">{journals?.totalElements ?? 0}</span>
+          {/* Stats — clickable counts */}
+          <div className="mt-3 flex gap-5 text-sm">
+            <span>
+              <strong>{journals?.totalElements ?? 0}</strong>
               <span className="ml-1 text-muted-foreground">게시물</span>
-            </div>
-            <button className="text-center hover:opacity-70" onClick={() => setFollowModal('followers')}>
-              <span className="font-semibold">{profile?.followerCount ?? 0}</span>
+            </span>
+            <button className="hover:opacity-70" onClick={() => setFollowModal('followers')}>
+              <strong>{profile?.followerCount ?? 0}</strong>
               <span className="ml-1 text-muted-foreground">팔로워</span>
             </button>
-            <button className="text-center hover:opacity-70" onClick={() => setFollowModal('following')}>
-              <span className="font-semibold">{profile?.followingCount ?? 0}</span>
+            <button className="hover:opacity-70" onClick={() => setFollowModal('following')}>
+              <strong>{profile?.followingCount ?? 0}</strong>
               <span className="ml-1 text-muted-foreground">팔로잉</span>
             </button>
           </div>
+
+          {/* Bio */}
+          {profile?.bio && (
+            <p className="mt-2.5 text-sm whitespace-pre-wrap leading-relaxed">{profile.bio}</p>
+          )}
         </div>
       </div>
 
-      {/* Bio */}
-      {profile?.bio && (
-        <div className="px-4 pb-4">
-          <p className="text-sm whitespace-pre-wrap">{profile.bio}</p>
-        </div>
-      )}
-
-      {/* Tabs — icon style like Instagram */}
-      <div className="flex border-t">
+      {/* Tab bar */}
+      <div className="flex border-y">
         {([
           { key: 'journals' as const, icon: Grid3x3, label: '투자일지' },
           { key: 'trades' as const, icon: BookOpen, label: '매매 내역' },
-          { key: 'feed' as const, icon: Rss, label: '피드' },
         ]).map(({ key, icon: Icon, label }) => (
           <button
             key={key}
@@ -120,13 +113,12 @@ export default function MyPage() {
       </div>
 
       {/* Content */}
-      <div className="px-1 py-2">
+      <div className="py-1">
         {tab === 'journals' && <JournalGrid journals={journals?.content ?? []} />}
         {tab === 'trades' && <TradeList trades={trades?.content ?? []} />}
-        {tab === 'feed' && <FeedList feed={feed?.content ?? []} onAuthorClick={(id) => navigate(`/users/${id}`)} />}
       </div>
 
-      {/* Edit Profile Modal */}
+      {/* Modals */}
       {editingProfile && (
         <EditProfileModal
           currentBio={profile?.bio ?? null}
@@ -137,7 +129,6 @@ export default function MyPage() {
         />
       )}
 
-      {/* Follower/Following Modal */}
       {followModal && (
         <FollowListModal
           userId={userId}
@@ -153,19 +144,24 @@ export default function MyPage() {
   )
 }
 
-// --- Journal Grid (Instagram-style thumbnail grid) ---
+// --- Journal Grid ---
 function JournalGrid({ journals }: { journals: Journal[] }) {
+  const navigate = useNavigate()
+
   if (!journals.length) {
     return (
-      <div className="py-16 text-center text-muted-foreground">
-        <Grid3x3 className="mx-auto h-12 w-12 opacity-30" />
-        <p className="mt-3 text-lg font-light">아직 투자일지가 없습니다</p>
+      <div className="py-16 text-center">
+        <Grid3x3 className="mx-auto h-10 w-10 text-muted-foreground/30" />
+        <p className="mt-3 text-muted-foreground">아직 투자일지가 없습니다</p>
+        <Button variant="outline" size="sm" className="mt-3" onClick={() => navigate('/journals')}>
+          일지 작성하기
+        </Button>
       </div>
     )
   }
 
   return (
-    <div className="grid grid-cols-3 gap-1">
+    <div className="grid grid-cols-3 gap-0.5">
       {journals.map((journal) => (
         <JournalGridItem key={journal.id} journal={journal} />
       ))}
@@ -198,16 +194,16 @@ function JournalGridItem({ journal }: { journal: Journal }) {
         <img src={thumbnailUrl} alt="" className="h-full w-full object-cover" />
       ) : (
         <div className="flex h-full w-full items-center justify-center p-2">
-          <span className="line-clamp-3 text-xs text-muted-foreground text-center">{journal.title}</span>
+          <span className="line-clamp-3 text-[11px] text-muted-foreground text-center leading-tight">{journal.title}</span>
         </div>
       )}
 
       {/* Hover overlay */}
       <div className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
-        <div className="text-center text-white">
-          <p className="text-xs font-semibold line-clamp-2 px-1">{journal.title}</p>
+        <div className="text-center text-white px-1.5">
+          <p className="text-xs font-semibold line-clamp-2">{journal.title}</p>
           {journal.images.length > 1 && (
-            <div className="mt-1 flex items-center justify-center gap-1 text-xs">
+            <div className="mt-1 flex items-center justify-center gap-1 text-[10px]">
               <ImageIcon className="h-3 w-3" />
               {journal.images.length}
             </div>
@@ -215,10 +211,9 @@ function JournalGridItem({ journal }: { journal: Journal }) {
         </div>
       </div>
 
-      {/* Multi-image indicator */}
       {journal.images.length > 1 && (
-        <div className="absolute right-1.5 top-1.5">
-          <ImageIcon className="h-4 w-4 text-white drop-shadow" />
+        <div className="absolute right-1 top-1">
+          <ImageIcon className="h-3.5 w-3.5 text-white drop-shadow" />
         </div>
       )}
     </button>
@@ -227,102 +222,49 @@ function JournalGridItem({ journal }: { journal: Journal }) {
 
 // --- Trade List ---
 function TradeList({ trades }: { trades: Trade[] }) {
+  const navigate = useNavigate()
+
   if (!trades.length) {
     return (
-      <div className="py-16 text-center text-muted-foreground">
-        <BookOpen className="mx-auto h-12 w-12 opacity-30" />
-        <p className="mt-3 text-lg font-light">아직 매매 내역이 없습니다</p>
+      <div className="py-16 text-center">
+        <BookOpen className="mx-auto h-10 w-10 text-muted-foreground/30" />
+        <p className="mt-3 text-muted-foreground">아직 매매 내역이 없습니다</p>
+        <Button variant="outline" size="sm" className="mt-3" onClick={() => navigate('/trades')}>
+          매매 기록하기
+        </Button>
       </div>
     )
   }
 
   return (
-    <div className="grid gap-2 px-1 py-2">
+    <div className="divide-y">
       {trades.map((trade) => (
-        <div key={trade.id} className="flex items-center justify-between rounded-lg border p-3">
-          <div className="flex items-center gap-3">
+        <div key={trade.id} className="flex items-center justify-between px-1 py-3">
+          <div className="flex items-center gap-2.5">
             <Badge
               variant="outline"
-              className={trade.position === 'BUY'
+              className={`text-[10px] ${trade.position === 'BUY'
                 ? 'border-red-300 bg-red-50 text-red-700'
-                : 'border-blue-300 bg-blue-50 text-blue-700'}
+                : 'border-blue-300 bg-blue-50 text-blue-700'}`}
             >
               {trade.position === 'BUY' ? '매수' : '매도'}
             </Badge>
             <div>
-              <span className="font-mono font-semibold text-sm">{trade.ticker}</span>
+              <span className="font-mono text-sm font-semibold">{trade.ticker}</span>
               <span className="ml-2 text-xs text-muted-foreground">{formatDate(trade.tradeDate)}</span>
             </div>
           </div>
           <div className="text-right">
-            <div className="text-xs text-muted-foreground">${trade.entryPrice.toLocaleString('en-US', { minimumFractionDigits: 2 })}</div>
-            {trade.profit != null && (
-              <div className={`text-sm font-semibold ${trade.profit > 0 ? 'text-red-600' : trade.profit < 0 ? 'text-blue-600' : 'text-muted-foreground'}`}>
-                {trade.profit > 0 ? '+' : ''}${Math.abs(trade.profit).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </div>
+            {trade.profit != null ? (
+              <span className={`text-sm font-semibold tabular-nums ${trade.profit > 0 ? 'text-red-600' : trade.profit < 0 ? 'text-blue-600' : 'text-muted-foreground'}`}>
+                {trade.profit > 0 ? '+' : ''}${trade.profit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
+            ) : (
+              <span className="text-xs text-muted-foreground">${trade.entryPrice.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
             )}
           </div>
         </div>
       ))}
-    </div>
-  )
-}
-
-// --- Feed List ---
-function FeedList({ feed, onAuthorClick }: { feed: { type: string; journal?: Journal | null; trade?: Trade | null; author: { id: number; nickname: string }; createdAt: string }[]; onAuthorClick: (id: number) => void }) {
-  if (!feed.length) {
-    return (
-      <div className="py-16 text-center text-muted-foreground">
-        <Rss className="mx-auto h-12 w-12 opacity-30" />
-        <p className="mt-3 text-lg font-light">피드가 비어 있습니다</p>
-        <p className="mt-1 text-sm">다른 투자자를 팔로우해보세요</p>
-      </div>
-    )
-  }
-
-  return (
-    <div className="grid gap-3 px-1 py-2">
-      {feed.map((item, i) => {
-        if (item.type === 'journal' && item.journal) {
-          return (
-            <div key={`j-${item.journal.id}-${i}`} className="rounded-lg border p-4">
-              <div className="flex items-center gap-2 text-sm">
-                <button className="font-semibold hover:underline" onClick={() => onAuthorClick(item.author.id)}>
-                  {item.author.nickname}
-                </button>
-                <span className="text-muted-foreground">{formatDate(item.journal.journalDate)}</span>
-              </div>
-              <h3 className="mt-1.5 font-semibold">{item.journal.title}</h3>
-              <p className="mt-1 line-clamp-3 text-sm text-muted-foreground">{item.journal.content}</p>
-            </div>
-          )
-        }
-        if (item.type === 'trade' && item.trade) {
-          return (
-            <div key={`t-${item.trade.id}-${i}`} className="rounded-lg border p-4">
-              <div className="flex items-center gap-2 text-sm">
-                <button className="font-semibold hover:underline" onClick={() => onAuthorClick(item.author.id)}>
-                  {item.author.nickname}
-                </button>
-                <Badge
-                  variant="outline"
-                  className={item.trade.position === 'BUY'
-                    ? 'border-red-300 bg-red-50 text-red-700'
-                    : 'border-blue-300 bg-blue-50 text-blue-700'}
-                >
-                  {item.trade.position === 'BUY' ? '매수' : '매도'}
-                </Badge>
-                <span className="font-mono font-semibold">{item.trade.ticker}</span>
-                <span className="text-muted-foreground">{formatDate(item.trade.tradeDate)}</span>
-              </div>
-              {item.trade.reason && (
-                <p className="mt-1.5 line-clamp-2 text-sm text-muted-foreground">{item.trade.reason}</p>
-              )}
-            </div>
-          )
-        }
-        return null
-      })}
     </div>
   )
 }
@@ -344,10 +286,8 @@ function FollowListModal({
   const { data } = useQuery({
     queryKey: ['followList', userId, type],
     queryFn: () =>
-      (type === 'followers'
-        ? followsApi.followers(userId)
-        : followsApi.following(userId)
-      ).then((r) => r.data),
+      (type === 'followers' ? followsApi.followers(userId) : followsApi.following(userId))
+        .then((r) => r.data),
   })
 
   const unfollowMutation = useMutation({
@@ -378,56 +318,35 @@ function FollowListModal({
     <>
       <div className="fixed inset-0 z-40 bg-black/30" onClick={onClose} />
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div className="w-full max-w-sm rounded-xl border bg-background shadow-xl" onClick={(e) => e.stopPropagation()}>
-          {/* Header */}
+        <div className="w-full max-w-sm overflow-hidden rounded-xl border bg-background shadow-xl" onClick={(e) => e.stopPropagation()}>
           <div className="flex items-center justify-between border-b px-4 py-3">
-            <h2 className="text-base font-semibold">
-              {type === 'followers' ? '팔로워' : '팔로잉'}
-            </h2>
-            <button onClick={onClose} className="rounded-md p-1 hover:bg-muted">
-              <X className="h-5 w-5" />
-            </button>
+            <h2 className="text-sm font-semibold">{type === 'followers' ? '팔로워' : '팔로잉'}</h2>
+            <button onClick={onClose} className="rounded-md p-1 hover:bg-muted"><X className="h-4 w-4" /></button>
           </div>
-
-          {/* List */}
-          <div className="max-h-96 overflow-y-auto">
+          <div className="max-h-80 overflow-y-auto">
             {!data?.content.length ? (
-              <div className="py-8 text-center text-sm text-muted-foreground">
+              <div className="py-10 text-center text-sm text-muted-foreground">
                 {type === 'followers' ? '아직 팔로워가 없습니다' : '아직 팔로우하는 유저가 없습니다'}
               </div>
             ) : (
               data.content.map((u: FollowUser) => (
-                <div key={u.id} className="flex items-center justify-between px-4 py-2.5">
-                  <button
-                    className="flex items-center gap-3 hover:opacity-70"
-                    onClick={() => onUserClick(u.id)}
-                  >
-                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-muted text-sm font-semibold">
+                <div key={u.id} className="flex items-center justify-between px-4 py-2.5 hover:bg-muted/50">
+                  <button className="flex items-center gap-3 min-w-0" onClick={() => onUserClick(u.id)}>
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-muted-foreground/20 to-muted text-xs font-bold">
                       {u.nickname.charAt(0).toUpperCase()}
                     </div>
-                    <div className="text-left">
-                      <p className="text-sm font-semibold">{u.nickname}</p>
-                      {u.bio && <p className="text-xs text-muted-foreground line-clamp-1">{u.bio}</p>}
+                    <div className="text-left min-w-0">
+                      <p className="text-sm font-semibold truncate">{u.nickname}</p>
+                      {u.bio && <p className="text-xs text-muted-foreground truncate">{u.bio}</p>}
                     </div>
                   </button>
                   {u.id !== userId && (
                     u.isFollowing ? (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-8 text-xs"
-                        onClick={() => unfollowMutation.mutate(u.id)}
-                        disabled={unfollowMutation.isPending}
-                      >
+                      <Button variant="outline" size="sm" className="ml-3 h-7 shrink-0 text-xs" onClick={() => unfollowMutation.mutate(u.id)} disabled={unfollowMutation.isPending}>
                         팔로잉
                       </Button>
                     ) : (
-                      <Button
-                        size="sm"
-                        className="h-8 text-xs"
-                        onClick={() => followMutation.mutate(u.id)}
-                        disabled={followMutation.isPending}
-                      >
+                      <Button size="sm" className="ml-3 h-7 shrink-0 text-xs" onClick={() => followMutation.mutate(u.id)} disabled={followMutation.isPending}>
                         팔로우
                       </Button>
                     )

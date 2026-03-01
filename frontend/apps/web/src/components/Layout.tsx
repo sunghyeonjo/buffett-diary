@@ -2,13 +2,12 @@ import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
-import { LayoutDashboard, BookOpen, FileText, Rss, Search, LogOut } from 'lucide-react'
+import { Home, BookOpen, FileText, Search, LogOut, User } from 'lucide-react'
 
 const navItems = [
-  { to: '/', label: '대시보드', icon: LayoutDashboard },
+  { to: '/', label: '홈', icon: Home },
   { to: '/trades', label: '매매 내역', icon: BookOpen },
   { to: '/journals', label: '투자일지', icon: FileText },
-  { to: '/feed', label: '피드', icon: Rss },
   { to: '/search', label: '탐색', icon: Search },
 ]
 
@@ -20,102 +19,118 @@ export default function Layout() {
   const initial = user?.nickname?.charAt(0).toUpperCase() ?? '?'
   const isMyPage = location.pathname === '/mypage'
 
+  const isActive = (to: string) => {
+    if (to === '/') return location.pathname === '/'
+    return location.pathname.startsWith(to)
+  }
+
   return (
     <div className="flex h-screen">
-      {/* Sidebar */}
-      <aside className="hidden w-60 flex-col border-r bg-card p-4 md:flex">
-        <div className="mb-8">
-          <img src="/logo.svg" alt="dayed" className="h-8" />
+      {/* Desktop Sidebar */}
+      <aside className="hidden w-56 flex-col border-r bg-card md:flex">
+        <div className="px-5 py-6">
+          <img src="/logo.svg" alt="dayed" className="h-7" />
         </div>
-        <nav className="flex flex-1 flex-col gap-1">
+
+        <nav className="flex flex-1 flex-col gap-0.5 px-3">
           {navItems.map(({ to, label, icon: Icon }) => (
             <Link
               key={to}
               to={to}
               className={cn(
-                'flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors',
-                location.pathname === to
-                  ? 'bg-primary text-primary-foreground'
-                  : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
+                'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+                isActive(to)
+                  ? 'bg-accent text-accent-foreground'
+                  : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground',
               )}
             >
-              <Icon className="h-4 w-4" />
+              <Icon className="h-5 w-5" />
               {label}
             </Link>
           ))}
         </nav>
 
-        {/* Bottom section: Profile + Logout */}
-        <div className="space-y-1 border-t pt-3">
+        {/* Bottom: Profile + Logout */}
+        <div className="border-t p-3">
           <button
             onClick={() => navigate('/mypage')}
             className={cn(
-              'flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors',
+              'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
               isMyPage
-                ? 'bg-primary text-primary-foreground'
-                : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
+                ? 'bg-accent text-accent-foreground'
+                : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground',
             )}
           >
             <div className={cn(
-              'flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold',
+              'flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold',
               isMyPage
-                ? 'bg-primary-foreground text-primary'
+                ? 'bg-primary text-primary-foreground'
                 : 'bg-muted text-muted-foreground',
             )}>
               {initial}
             </div>
-            {user?.nickname}
+            <span className="truncate">{user?.nickname}</span>
           </button>
-          <Button variant="ghost" className="w-full justify-start gap-3 text-muted-foreground" onClick={logout}>
-            <LogOut className="h-4 w-4" />
+          <button
+            onClick={logout}
+            className="mt-0.5 flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
+          >
+            <LogOut className="h-5 w-5" />
             로그아웃
-          </Button>
+          </button>
         </div>
       </aside>
 
       {/* Main content */}
       <div className="flex flex-1 flex-col overflow-hidden">
-        {/* Mobile header */}
-        <header className="flex items-center justify-between border-b p-4 md:hidden">
-          <img src="/logo.svg" alt="dayed" className="h-7" />
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => navigate('/mypage')}
-              className={cn(
-                'flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold transition-colors',
-                isMyPage
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-muted text-muted-foreground hover:bg-accent',
-              )}
-            >
-              {initial}
-            </button>
-            <Button variant="ghost" size="sm" onClick={logout}>
-              <LogOut className="h-4 w-4" />
-            </Button>
-          </div>
+        {/* Mobile top bar */}
+        <header className="flex items-center justify-between border-b px-4 py-3 md:hidden">
+          <img src="/logo.svg" alt="dayed" className="h-6" />
+          <button
+            onClick={() => navigate('/mypage')}
+            className={cn(
+              'flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold transition-colors',
+              isMyPage
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-muted text-muted-foreground hover:bg-accent',
+            )}
+          >
+            {initial}
+          </button>
         </header>
-        {/* Mobile nav */}
-        <nav className="flex border-b md:hidden">
+
+        <main className="flex-1 overflow-auto p-4 pb-20 md:p-6 md:pb-6">
+          <Outlet />
+        </main>
+
+        {/* Mobile bottom tab bar */}
+        <nav className="fixed inset-x-0 bottom-0 z-30 flex border-t bg-background md:hidden">
           {navItems.map(({ to, label, icon: Icon }) => (
             <Link
               key={to}
               to={to}
               className={cn(
-                'flex flex-1 items-center justify-center gap-2 py-3 text-sm',
-                location.pathname === to
-                  ? 'border-b-2 border-primary font-medium'
+                'flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px]',
+                isActive(to)
+                  ? 'text-primary'
                   : 'text-muted-foreground',
               )}
             >
-              <Icon className="h-4 w-4" />
-              <span className="hidden sm:inline">{label}</span>
+              <Icon className="h-5 w-5" />
+              {label}
             </Link>
           ))}
+          <Link
+            to="/mypage"
+            className={cn(
+              'flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px]',
+              isMyPage ? 'text-primary' : 'text-muted-foreground',
+            )}
+          >
+            <User className="h-5 w-5" />
+            MY
+          </Link>
         </nav>
-        <main className="flex-1 overflow-auto p-6">
-          <Outlet />
-        </main>
       </div>
     </div>
   )
