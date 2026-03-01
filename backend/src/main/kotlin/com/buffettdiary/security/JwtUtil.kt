@@ -1,7 +1,10 @@
 package com.buffettdiary.security
 
+import io.jsonwebtoken.ExpiredJwtException
+import io.jsonwebtoken.JwtException
 import io.jsonwebtoken.Jwts
 import io.jsonwebtoken.security.Keys
+import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Component
 import java.util.Date
@@ -13,6 +16,8 @@ class JwtUtil(
     @Value("\${jwt.access-expiration}") private val accessExpiration: Long,
     @Value("\${jwt.refresh-expiration}") private val refreshExpiration: Long,
 ) {
+    private val log = LoggerFactory.getLogger(javaClass)
+
     private val key: SecretKey by lazy {
         Keys.hmacShaKeyFor(secret.toByteArray())
     }
@@ -46,7 +51,14 @@ class JwtUtil(
         return try {
             getClaims(token)
             true
+        } catch (e: ExpiredJwtException) {
+            log.debug("JWT expired")
+            false
+        } catch (e: JwtException) {
+            log.debug("JWT invalid: {}", e.message)
+            false
         } catch (e: Exception) {
+            log.warn("Unexpected error validating JWT: {}", e.message)
             false
         }
     }

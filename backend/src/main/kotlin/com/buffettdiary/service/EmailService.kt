@@ -10,9 +10,8 @@ import org.springframework.web.client.RestTemplate
 @Service
 class EmailService(
     @Value("\${resend.api-key}") private val apiKey: String,
+    private val restTemplate: RestTemplate,
 ) {
-    private val restTemplate = RestTemplate()
-
     fun sendVerificationCode(email: String, code: String) {
         val headers = HttpHeaders().apply {
             contentType = MediaType.APPLICATION_JSON

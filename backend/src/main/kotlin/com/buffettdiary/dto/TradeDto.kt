@@ -1,16 +1,16 @@
 package com.buffettdiary.dto
 
 import com.buffettdiary.enums.Position
-import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.NotNull
 import jakarta.validation.constraints.Positive
 import jakarta.validation.constraints.Size
 import java.io.Serializable
 import java.math.BigDecimal
+import java.time.LocalDate
 
 data class TradeRequest(
-    @field:NotBlank val tradeDate: String,
-    @field:NotBlank @field:Size(max = 10) val ticker: String,
+    @field:NotNull val tradeDate: LocalDate,
+    @field:Size(max = 10) val ticker: String,
     @field:NotNull val position: Position, // BUY or SELL
     @field:NotNull @field:Positive val quantity: BigDecimal,
     @field:NotNull @field:Positive val entryPrice: BigDecimal,
@@ -30,9 +30,9 @@ data class TradeResponse(
     val exitPrice: BigDecimal?,
     val profit: BigDecimal?,
     val reason: String?,
-    val retrospective: String?,
+    val comment: String?,
     val rating: Int?,
-    val retrospectiveUpdatedAt: String?,
+    val commentUpdatedAt: String?,
     val createdAt: String,
     val updatedAt: String,
     val images: List<TradeImageResponse> = emptyList(),
@@ -67,17 +67,13 @@ data class PageResponse<T>(
     }
 }
 
-data class TradeImageDataResponse(
+class TradeImageDataResponse(
     val fileName: String,
     val contentType: String,
     val data: ByteArray,
-) : Serializable {
-    companion object {
-        private const val serialVersionUID = 1L
-    }
-}
+)
 
-data class TradeRetrospectiveRequest(
+data class TradeCommentRequest(
     @field:Size(max = 1000) val content: String? = null,
     val rating: Int? = null,
 )
@@ -93,6 +89,17 @@ data class TradeStatsResponse(
     val averageProfit: BigDecimal,
     val bestTrade: BigDecimal,
     val worstTrade: BigDecimal,
+) : Serializable {
+    companion object {
+        private const val serialVersionUID = 1L
+    }
+}
+
+data class StockResponse(
+    val ticker: String,
+    val nameEn: String,
+    val nameKo: String?,
+    val logoUrl: String?,
 ) : Serializable {
     companion object {
         private const val serialVersionUID = 1L

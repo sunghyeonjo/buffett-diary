@@ -40,17 +40,11 @@ class Trade(
     @Column(columnDefinition = "TEXT")
     var reason: String? = null,
 
-    @Column(columnDefinition = "TEXT")
-    var retrospective: String? = null,
+    @Column(name = "comment", columnDefinition = "TEXT")
+    var comment: String? = null,
 
     var rating: Int? = null,
 
-    @Column(name = "retrospective_updated_at")
-    var retrospectiveUpdatedAt: LocalDateTime? = null,
-
-    @Column(name = "created_at", nullable = false, updatable = false)
-    val createdAt: LocalDateTime = LocalDateTime.now(),
-
-    @Column(name = "updated_at", nullable = false)
-    var updatedAt: LocalDateTime = LocalDateTime.now(),
-)
+    @Column(name = "comment_updated_at")
+    var commentUpdatedAt: LocalDateTime? = null,
+) : AuditEntity()

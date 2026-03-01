@@ -19,9 +19,13 @@ class CacheConfig {
         val imageConfig = RedisCacheConfiguration.defaultCacheConfig()
             .entryTtl(Duration.ofMinutes(30))
 
+        val stocksConfig = RedisCacheConfiguration.defaultCacheConfig()
+            .entryTtl(Duration.ofHours(24))
+
         return RedisCacheManager.builder(connectionFactory)
             .cacheDefaults(defaultConfig)
             .withCacheConfiguration("tradeImageData", imageConfig)
+            .withCacheConfiguration("stocks", stocksConfig)
             .build()
     }
 }

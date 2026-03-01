@@ -2,6 +2,7 @@ package com.buffettdiary.config
 
 import com.buffettdiary.security.JwtAuthFilter
 import jakarta.servlet.http.HttpServletResponse
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.security.config.annotation.web.builders.HttpSecurity
@@ -19,6 +20,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource
 @EnableWebSecurity
 class SecurityConfig(
     private val jwtAuthFilter: JwtAuthFilter,
+    @Value("\${frontend.url}") private val frontendUrl: String,
 ) {
     @Bean
     fun securityFilterChain(http: HttpSecurity): SecurityFilterChain {
@@ -28,7 +30,6 @@ class SecurityConfig(
             .sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }
             .authorizeHttpRequests {
                 it.requestMatchers("/api/v1/auth/**").permitAll()
-                it.requestMatchers("/h2-console/**").permitAll()
                 it.anyRequest().authenticated()
             }
             .exceptionHandling {
@@ -36,7 +37,6 @@ class SecurityConfig(
                     response.sendError(HttpServletResponse.SC_UNAUTHORIZED)
                 }
             }
-            .headers { it.frameOptions { fo -> fo.sameOrigin() } }
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter::class.java)
         return http.build()
     }
@@ -50,7 +50,7 @@ class SecurityConfig(
         config.allowedOrigins = listOf(
             "http://localhost:5173",
             "http://localhost:5174",
-            "https://dayed.vercel.app"
+            frontendUrl,
         )
         config.allowedMethods = listOf("GET", "POST", "PUT", "DELETE", "OPTIONS")
         config.allowedHeaders = listOf("*")

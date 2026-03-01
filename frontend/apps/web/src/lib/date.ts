@@ -1,13 +1,13 @@
 import dayjs from 'dayjs'
 
-/** YYYY-MM-DD */
+/** 2026년 03월 01일 */
 export function formatDate(value: string | Date): string {
-  return dayjs(value).format('YYYY-MM-DD')
+  return dayjs(value).format('YYYY년 MM월 DD일')
 }
 
-/** YYYY-MM-DD HH시 mm분 */
+/** 2026년 03월 01일 14시 30분 */
 export function formatDateTime(value: string | Date): string {
-  return dayjs(value).format('YYYY-MM-DD HH시 mm분')
+  return dayjs(value).format('YYYY년 MM월 DD일 HH시 mm분')
 }
 
 /** dayjs 인스턴스를 API 파라미터용 YYYY-MM-DD 문자열로 변환 */

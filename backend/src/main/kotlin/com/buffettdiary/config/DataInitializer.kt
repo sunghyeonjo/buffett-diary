@@ -2,6 +2,7 @@ package com.buffettdiary.config
 
 import com.buffettdiary.entity.Trade
 import com.buffettdiary.entity.User
+import com.buffettdiary.enums.AuthProvider
 import com.buffettdiary.enums.Position
 import com.buffettdiary.repository.TradeRepository
 import com.buffettdiary.repository.UserRepository
@@ -12,7 +13,7 @@ import java.math.BigDecimal
 import java.time.LocalDate
 
 @Component
-@Profile("default")
+@Profile("local")
 class DataInitializer(
     private val userRepository: UserRepository,
     private val tradeRepository: TradeRepository,
@@ -25,7 +26,7 @@ class DataInitializer(
             User(
                 email = "demo@buffett.com",
                 nickname = "데모유저",
-                provider = "DEMO",
+                provider = AuthProvider.DEMO,
             )
         )
         val uid = user.id

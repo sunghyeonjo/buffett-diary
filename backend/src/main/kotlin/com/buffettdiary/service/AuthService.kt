@@ -3,6 +3,8 @@ package com.buffettdiary.service
 import com.buffettdiary.dto.*
 import com.buffettdiary.entity.RefreshToken
 import com.buffettdiary.entity.User
+import com.buffettdiary.enums.AuthProvider
+import com.buffettdiary.exception.*
 import com.buffettdiary.repository.RefreshTokenRepository
 import com.buffettdiary.repository.UserRepository
 import com.buffettdiary.security.JwtUtil
@@ -10,6 +12,7 @@ import org.springframework.data.redis.core.StringRedisTemplate
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import java.security.SecureRandom
 import java.time.Duration
 import java.time.LocalDateTime
 
@@ -24,14 +27,14 @@ class AuthService(
 ) {
     fun sendVerificationCode(email: String) {
         if (userRepository.existsByEmail(email)) {
-            throw IllegalArgumentException("이미 사용 중인 이메일입니다")
+            throw ConflictException("이미 사용 중인 이메일입니다")
         }
         // 60초 쿨다운
         val cooldownKey = "verify:cooldown:$email"
         if (redisTemplate.hasKey(cooldownKey)) {
-            throw IllegalArgumentException("잠시 후 다시 시도해주세요 (60초 제한)")
+            throw RateLimitException("잠시 후 다시 시도해주세요 (60초 제한)")
         }
-        val code = (100000..999999).random().toString()
+        val code = "%06d".format(SecureRandom().nextInt(1_000_000))
         redisTemplate.opsForValue().set("verify:code:$email", code, Duration.ofMinutes(5))
         redisTemplate.delete("verify:attempts:$email")
         redisTemplate.opsForValue().set(cooldownKey, "1", Duration.ofSeconds(60))
@@ -40,7 +43,7 @@ class AuthService(
 
     fun verifyCode(email: String, code: String) {
         val stored = redisTemplate.opsForValue().get("verify:code:$email")
-            ?: throw IllegalArgumentException("인증 코드가 만료되었습니다")
+            ?: throw BadRequestException("인증 코드가 만료되었습니다")
         // 5회 시도 제한
         val attemptsKey = "verify:attempts:$email"
         val attempts = redisTemplate.opsForValue().increment(attemptsKey) ?: 1
@@ -50,10 +53,10 @@ class AuthService(
         if (attempts > 5) {
             redisTemplate.delete("verify:code:$email")
             redisTemplate.delete(attemptsKey)
-            throw IllegalArgumentException("시도 횟수를 초과했습니다. 인증 코드를 다시 발송해주세요")
+            throw BadRequestException("시도 횟수를 초과했습니다. 인증 코드를 다시 발송해주세요")
         }
         if (stored != code) {
-            throw IllegalArgumentException("인증 코드가 올바르지 않습니다 (${5 - attempts}회 남음)")
+            throw BadRequestException("인증 코드가 올바르지 않습니다 (${5 - attempts}회 남음)")
         }
         redisTemplate.delete("verify:code:$email")
         redisTemplate.delete(attemptsKey)
@@ -63,13 +66,13 @@ class AuthService(
     @Transactional
     fun register(request: RegisterRequest): AuthResponse {
         if (userRepository.existsByEmail(request.email)) {
-            throw IllegalArgumentException("이미 사용 중인 이메일입니다")
+            throw ConflictException("이미 사용 중인 이메일입니다")
         }
         validatePassword(request.password)
         validateNickname(request.nickname)
         val verified = redisTemplate.opsForValue().get("verify:confirmed:${request.email}")
         if (verified != "true") {
-            throw IllegalArgumentException("이메일 인증이 필요합니다")
+            throw BadRequestException("이메일 인증이 필요합니다")
         }
         redisTemplate.delete("verify:confirmed:${request.email}")
         val user = userRepository.save(
@@ -77,7 +80,7 @@ class AuthService(
                 email = request.email,
                 password = passwordEncoder.encode(request.password),
                 nickname = request.nickname,
-                provider = "LOCAL",
+                provider = AuthProvider.LOCAL,
             )
         )
         return createAuthResponse(user)
@@ -86,14 +89,15 @@ class AuthService(
     @Transactional
     fun login(request: LoginRequest): AuthResponse {
         val user = userRepository.findByEmail(request.email)
-            ?: throw IllegalArgumentException("이메일 또는 비밀번호가 올바르지 않습니다")
+            ?: throw BadRequestException("이메일 또는 비밀번호가 올바르지 않습니다")
         if (user.password == null || !passwordEncoder.matches(request.password, user.password)) {
-            throw IllegalArgumentException("이메일 또는 비밀번호가 올바르지 않습니다")
+            throw BadRequestException("이메일 또는 비밀번호가 올바르지 않습니다")
         }
         return createAuthResponse(user)
     }
+
     @Transactional
-    fun findOrCreateOAuthUser(email: String, nickname: String, provider: String, providerId: String): AuthResponse {
+    fun findOrCreateOAuthUser(email: String, nickname: String, provider: AuthProvider, providerId: String): AuthResponse {
         val user = userRepository.findByEmail(email)
             ?: userRepository.save(
                 User(
@@ -109,14 +113,14 @@ class AuthService(
     @Transactional
     fun refresh(request: RefreshRequest): AuthResponse {
         val stored = refreshTokenRepository.findByToken(request.refreshToken)
-            ?: throw IllegalArgumentException("Invalid refresh token")
+            ?: throw UnauthorizedException("Invalid refresh token")
         if (stored.expiresAt.isBefore(LocalDateTime.now())) {
             refreshTokenRepository.delete(stored)
-            throw IllegalArgumentException("Refresh token expired")
+            throw UnauthorizedException("Refresh token expired")
         }
         refreshTokenRepository.delete(stored)
         val user = userRepository.findById(stored.userId)
-            .orElseThrow { IllegalArgumentException("User not found") }
+            .orElseThrow { NotFoundException("User not found") }
         return createAuthResponse(user)
     }
 
@@ -125,32 +129,33 @@ class AuthService(
         refreshTokenRepository.deleteByToken(request.refreshToken)
     }
 
+    @Transactional(readOnly = true)
     fun isNicknameTaken(nickname: String): Boolean {
         return userRepository.existsByNickname(nickname)
     }
 
     private fun validatePassword(password: String) {
         if (password.length < 8 || password.length > 72) {
-            throw IllegalArgumentException("비밀번호는 8~72자로 입력해주세요")
+            throw BadRequestException("비밀번호는 8~72자로 입력해주세요")
         }
         val hasLetter = password.any { it.isLetter() }
         val hasDigit = password.any { it.isDigit() }
         val hasSpecial = password.any { !it.isLetterOrDigit() }
         val typesCount = listOf(hasLetter, hasDigit, hasSpecial).count { it }
         if (typesCount < 2) {
-            throw IllegalArgumentException("비밀번호는 영문, 숫자, 특수문자 중 2가지 이상 포함해야 합니다")
+            throw BadRequestException("비밀번호는 영문, 숫자, 특수문자 중 2가지 이상 포함해야 합니다")
         }
     }
 
     private fun validateNickname(nickname: String) {
         if (nickname.length < 2 || nickname.length > 20) {
-            throw IllegalArgumentException("닉네임은 2~20자로 입력해주세요")
+            throw BadRequestException("닉네임은 2~20자로 입력해주세요")
         }
         if (!nickname.matches(Regex("^[가-힣a-zA-Z0-9_]+$"))) {
-            throw IllegalArgumentException("닉네임은 한글, 영문, 숫자, 밑줄만 사용할 수 있습니다")
+            throw BadRequestException("닉네임은 한글, 영문, 숫자, 밑줄만 사용할 수 있습니다")
         }
         if (userRepository.existsByNickname(nickname)) {
-            throw IllegalArgumentException("이미 사용 중인 닉네임입니다")
+            throw ConflictException("이미 사용 중인 닉네임입니다")
         }
     }
 

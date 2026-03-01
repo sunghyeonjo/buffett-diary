@@ -96,7 +96,7 @@ export default function BulkTradeModal({ onClose, onSaved }: BulkTradeModalProps
     mutationFn: (data: TradeRequest[]) => tradesApi.bulkCreate(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['trades'] })
-      queryClient.invalidateQueries({ queryKey: ['tradeStats'] })
+      queryClient.invalidateQueries({ queryKey: ['stats'] })
       onSaved()
     },
   })

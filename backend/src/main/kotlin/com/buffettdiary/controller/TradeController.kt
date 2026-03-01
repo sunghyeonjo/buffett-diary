@@ -101,20 +101,20 @@ class TradeController(
         return ResponseEntity.noContent().build()
     }
 
-    // --- Retrospective endpoints ---
+    // --- Comment endpoints ---
 
-    @PutMapping("/{id}/retrospective")
-    fun updateRetrospective(
+    @PutMapping("/{id}/comment")
+    fun updateComment(
         auth: Authentication,
         @PathVariable id: Long,
-        @Valid @RequestBody request: TradeRetrospectiveRequest,
+        @Valid @RequestBody request: TradeCommentRequest,
     ): ResponseEntity<TradeResponse> {
-        return ResponseEntity.ok(tradeService.updateRetrospective(userId(auth), id, request))
+        return ResponseEntity.ok(tradeService.updateComment(userId(auth), id, request))
     }
 
-    @DeleteMapping("/{id}/retrospective")
-    fun deleteRetrospective(auth: Authentication, @PathVariable id: Long): ResponseEntity<Void> {
-        tradeService.deleteRetrospective(userId(auth), id)
+    @DeleteMapping("/{id}/comment")
+    fun deleteComment(auth: Authentication, @PathVariable id: Long): ResponseEntity<Void> {
+        tradeService.deleteComment(userId(auth), id)
         return ResponseEntity.noContent().build()
     }
 }

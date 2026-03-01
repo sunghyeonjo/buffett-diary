@@ -1,5 +1,6 @@
 package com.buffettdiary.controller
 
+import com.buffettdiary.enums.AuthProvider
 import com.buffettdiary.service.AuthService
 import com.buffettdiary.service.OAuthService
 import org.springframework.beans.factory.annotation.Value
@@ -35,7 +36,7 @@ class OAuthController(
         val authResponse = authService.findOrCreateOAuthUser(
             email = userInfo.email,
             nickname = userInfo.nickname,
-            provider = provider.uppercase(),
+            provider = AuthProvider.valueOf(provider.uppercase()),
             providerId = userInfo.providerId,
         )
         val userJson = URLEncoder.encode(

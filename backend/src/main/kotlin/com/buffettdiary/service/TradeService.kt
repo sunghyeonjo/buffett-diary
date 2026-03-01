@@ -3,6 +3,9 @@ package com.buffettdiary.service
 import com.buffettdiary.dto.*
 import com.buffettdiary.entity.Trade
 import com.buffettdiary.enums.Position
+import com.buffettdiary.exception.BadRequestException
+import com.buffettdiary.exception.ForbiddenException
+import com.buffettdiary.exception.NotFoundException
 import com.buffettdiary.repository.TradeRepository
 import org.springframework.cache.annotation.CacheEvict
 import org.springframework.cache.annotation.Cacheable
@@ -13,13 +16,13 @@ import java.math.BigDecimal
 import java.math.RoundingMode
 import java.time.DayOfWeek
 import java.time.LocalDate
-import java.time.LocalDateTime
 
 @Service
 class TradeService(
     private val tradeRepository: TradeRepository,
     private val tradeImageService: TradeImageService,
 ) {
+    @Transactional(readOnly = true)
     @Cacheable(value = ["trades"], key = "#userId + '-' + #startDate + '-' + #endDate + '-' + #ticker + '-' + #position + '-' + #page + '-' + #size")
     fun list(userId: Long, startDate: String?, endDate: String?, ticker: String?, position: Position?, page: Int, size: Int): PageResponse<TradeResponse> {
         val pageable = PageRequest.of(page, size)
@@ -44,11 +47,12 @@ class TradeService(
         )
     }
 
+    @Transactional(readOnly = true)
     @Cacheable(value = ["tradeDetail"], key = "#userId + '-' + #id")
     fun get(userId: Long, id: Long): TradeResponse {
         val trade = tradeRepository.findById(id)
-            .orElseThrow { IllegalArgumentException("Trade not found") }
-        if (trade.userId != userId) throw IllegalArgumentException("Not authorized")
+            .orElseThrow { NotFoundException("Trade not found") }
+        if (trade.userId != userId) throw ForbiddenException("Not authorized")
         val images = tradeImageService.getImageMetas(id, userId)
         return trade.toResponse(images)
     }
@@ -56,36 +60,13 @@ class TradeService(
     @Transactional
     @CacheEvict(value = ["trades", "tradeDetail", "tradeStats"], allEntries = true)
     fun create(userId: Long, request: TradeRequest): TradeResponse {
-        val trade = Trade(
-            userId = userId,
-            tradeDate = LocalDate.parse(request.tradeDate),
-            ticker = request.ticker.uppercase(),
-            position = request.position,
-            quantity = request.quantity,
-            entryPrice = request.entryPrice,
-            exitPrice = request.exitPrice,
-            profit = if (request.position.isSell()) request.profit else null,
-            reason = request.reason,
-        )
-        return tradeRepository.save(trade).toResponse()
+        return tradeRepository.save(buildTrade(userId, request)).toResponse()
     }
 
     @Transactional
     @CacheEvict(value = ["trades", "tradeDetail", "tradeStats"], allEntries = true)
     fun bulkCreate(userId: Long, requests: List<TradeRequest>): List<TradeResponse> {
-        val trades = requests.map { request ->
-            Trade(
-                userId = userId,
-                tradeDate = LocalDate.parse(request.tradeDate),
-                ticker = request.ticker.uppercase(),
-                position = request.position,
-                quantity = request.quantity,
-                entryPrice = request.entryPrice,
-                exitPrice = request.exitPrice,
-                profit = if (request.position.isSell()) request.profit else null,
-                reason = request.reason,
-            )
-        }
+        val trades = requests.map { buildTrade(userId, it) }
         return tradeRepository.saveAll(trades).map { it.toResponse() }
     }
 
@@ -93,8 +74,8 @@ class TradeService(
     @CacheEvict(value = ["trades", "tradeDetail", "tradeStats"], allEntries = true)
     fun update(userId: Long, id: Long, request: TradeRequest): TradeResponse {
         val trade = tradeRepository.findById(id)
-            .orElseThrow { IllegalArgumentException("Trade not found") }
-        if (trade.userId != userId) throw IllegalArgumentException("Not authorized")
+            .orElseThrow { NotFoundException("Trade not found") }
+        if (trade.userId != userId) throw ForbiddenException("Not authorized")
 
         trade.ticker = request.ticker.uppercase()
         trade.position = request.position
@@ -103,7 +84,6 @@ class TradeService(
         trade.exitPrice = request.exitPrice
         trade.profit = if (request.position.isSell()) request.profit else null
         trade.reason = request.reason
-        trade.updatedAt = LocalDateTime.now()
 
         return tradeRepository.save(trade).toResponse()
     }
@@ -112,12 +92,13 @@ class TradeService(
     @CacheEvict(value = ["trades", "tradeDetail", "tradeStats"], allEntries = true)
     fun delete(userId: Long, id: Long) {
         val trade = tradeRepository.findById(id)
-            .orElseThrow { IllegalArgumentException("Trade not found") }
-        if (trade.userId != userId) throw IllegalArgumentException("Not authorized")
+            .orElseThrow { NotFoundException("Trade not found") }
+        if (trade.userId != userId) throw ForbiddenException("Not authorized")
         tradeImageService.deleteByTradeId(id)
         tradeRepository.delete(trade)
     }
 
+    @Transactional(readOnly = true)
     @Cacheable(value = ["tradeStats"], key = "#userId + '-' + #period")
     fun stats(userId: Long, period: String): TradeStatsResponse {
         val trades = when (period) {
@@ -164,29 +145,41 @@ class TradeService(
 
     @Transactional
     @CacheEvict(value = ["trades", "tradeDetail"], allEntries = true)
-    fun updateRetrospective(userId: Long, id: Long, request: TradeRetrospectiveRequest): TradeResponse {
+    fun updateComment(userId: Long, id: Long, request: TradeCommentRequest): TradeResponse {
         val trade = tradeRepository.findById(id)
-            .orElseThrow { IllegalArgumentException("Trade not found") }
-        if (trade.userId != userId) throw IllegalArgumentException("Not authorized")
-        if (request.rating != null && request.rating !in 1..5) throw IllegalArgumentException("Rating must be 1-5")
-        trade.retrospective = request.content
+            .orElseThrow { NotFoundException("Trade not found") }
+        if (trade.userId != userId) throw ForbiddenException("Not authorized")
+        if (request.rating != null && request.rating !in 1..5) throw BadRequestException("Rating must be 1-5")
+        trade.comment = request.content
         trade.rating = request.rating
-        trade.retrospectiveUpdatedAt = LocalDateTime.now()
-        trade.updatedAt = LocalDateTime.now()
+        trade.commentUpdatedAt = java.time.LocalDateTime.now()
         return tradeRepository.save(trade).toResponse()
     }
 
     @Transactional
     @CacheEvict(value = ["trades", "tradeDetail"], allEntries = true)
-    fun deleteRetrospective(userId: Long, id: Long) {
+    fun deleteComment(userId: Long, id: Long) {
         val trade = tradeRepository.findById(id)
-            .orElseThrow { IllegalArgumentException("Trade not found") }
-        if (trade.userId != userId) throw IllegalArgumentException("Not authorized")
-        trade.retrospective = null
+            .orElseThrow { NotFoundException("Trade not found") }
+        if (trade.userId != userId) throw ForbiddenException("Not authorized")
+        trade.comment = null
         trade.rating = null
-        trade.retrospectiveUpdatedAt = null
-        trade.updatedAt = LocalDateTime.now()
+        trade.commentUpdatedAt = null
         tradeRepository.save(trade)
+    }
+
+    private fun buildTrade(userId: Long, request: TradeRequest): Trade {
+        return Trade(
+            userId = userId,
+            tradeDate = request.tradeDate,
+            ticker = request.ticker.uppercase(),
+            position = request.position,
+            quantity = request.quantity,
+            entryPrice = request.entryPrice,
+            exitPrice = request.exitPrice,
+            profit = if (request.position.isSell()) request.profit else null,
+            reason = request.reason,
+        )
     }
 
     private fun Trade.toResponse(images: List<TradeImageResponse> = emptyList()) = TradeResponse(
@@ -200,9 +193,9 @@ class TradeService(
         exitPrice = exitPrice,
         profit = profit,
         reason = reason,
-        retrospective = retrospective,
+        comment = comment,
         rating = rating,
-        retrospectiveUpdatedAt = retrospectiveUpdatedAt?.toString(),
+        commentUpdatedAt = commentUpdatedAt?.toString(),
         createdAt = createdAt.toString(),
         updatedAt = updatedAt.toString(),
         images = images,

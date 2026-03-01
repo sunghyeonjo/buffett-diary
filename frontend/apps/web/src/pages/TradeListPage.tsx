@@ -8,7 +8,7 @@ import {
 } from '@tanstack/react-table'
 import type { Trade, TradeFilter } from '@buffett-diary/shared'
 import dayjs from 'dayjs'
-import { tradesApi, tradeImagesApi, tradeRetrospectiveApi } from '@/api/trades'
+import { tradesApi, tradeImagesApi, tradeCommentApi } from '@/api/trades'
 import { formatDate, formatDateTime, toDateString } from '@/lib/date'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -124,31 +124,43 @@ const RATING_COLORS = [
   'border-green-300 bg-green-50 text-green-700',
 ] as const
 
-function TradeDetailPanel({ trade, onClose, onSaved }: { trade: Trade; onClose: () => void; onSaved: () => void }) {
+function TradeDetailPanel({ trade, onClose, onSaved, onTradeUpdated }: { trade: Trade; onClose: () => void; onSaved: () => void; onTradeUpdated: (t: Trade) => void }) {
   const queryClient = useQueryClient()
   const [imageUrls, setImageUrls] = useState<Map<number, string>>(new Map())
   const [viewerIndex, setViewerIndex] = useState<number | null>(null)
   const [editing, setEditing] = useState(false)
   const [selectedImageIndex, setSelectedImageIndex] = useState(0)
-  const [retroEditing, setRetroEditing] = useState(false)
-  const [retroContent, setRetroContent] = useState(trade.retrospective ?? '')
-  const [retroRating, setRetroRating] = useState<number | null>(trade.rating)
+  const [commentEditing, setCommentEditing] = useState(false)
+  const [commentContent, setCommentContent] = useState(trade.comment ?? '')
+  const [commentRating, setCommentRating] = useState<number | null>(trade.rating)
 
-  const retroMutation = useMutation({
-    mutationFn: () => tradeRetrospectiveApi.update(trade.id, { content: retroContent.trim() || null, rating: retroRating }),
-    onSuccess: () => {
+  // trade prop 변경 시 로컬 상태 동기화
+  useEffect(() => {
+    if (!commentEditing) {
+      setCommentContent(trade.comment ?? '')
+      setCommentRating(trade.rating)
+    }
+  }, [trade.comment, trade.rating]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const commentMutation = useMutation({
+    mutationFn: () =>
+      tradeCommentApi.update(trade.id, { content: commentContent.trim() || null, rating: commentRating }),
+    onSuccess: ({ data: updated }) => {
       queryClient.invalidateQueries({ queryKey: ['trades'] })
-      setRetroEditing(false)
+      onTradeUpdated(updated)
+      setCommentEditing(false)
     },
   })
 
-  const retroDeleteMutation = useMutation({
-    mutationFn: () => tradeRetrospectiveApi.delete(trade.id),
+  const commentDeleteMutation = useMutation({
+    mutationFn: () => tradeCommentApi.delete(trade.id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['trades'] })
-      setRetroContent('')
-      setRetroRating(null)
-      setRetroEditing(false)
+      const cleared = { ...trade, comment: null, rating: null, commentUpdatedAt: null }
+      onTradeUpdated(cleared)
+      setCommentContent('')
+      setCommentRating(null)
+      setCommentEditing(false)
     },
   })
 
@@ -322,18 +334,18 @@ function TradeDetailPanel({ trade, onClose, onSaved }: { trade: Trade; onClose: 
                 )
               })()}
 
-              {/* Retrospective (회고) */}
+              {/* Comment (회고) */}
               <div>
                 <div className="mb-2 flex items-center justify-between">
                   <h3 className="text-sm font-medium text-muted-foreground">회고</h3>
-                  {!retroEditing && (trade.retrospective || trade.rating != null) && (
+                  {!commentEditing && (trade.comment || trade.rating != null) && (
                     <div className="flex gap-1">
                       <button
                         className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
                         onClick={() => {
-                          setRetroContent(trade.retrospective ?? '')
-                          setRetroRating(trade.rating)
-                          setRetroEditing(true)
+                          setCommentContent(trade.comment ?? '')
+                          setCommentRating(trade.rating)
+                          setCommentEditing(true)
                         }}
                       >
                         <Pencil className="h-3.5 w-3.5" />
@@ -341,7 +353,7 @@ function TradeDetailPanel({ trade, onClose, onSaved }: { trade: Trade; onClose: 
                       <button
                         className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-destructive"
                         onClick={() => {
-                          if (confirm('회고를 삭제하시겠습니까?')) retroDeleteMutation.mutate()
+                          if (confirm('회고를 삭제하시겠습니까?')) commentDeleteMutation.mutate()
                         }}
                       >
                         <Trash2 className="h-3.5 w-3.5" />
@@ -350,7 +362,7 @@ function TradeDetailPanel({ trade, onClose, onSaved }: { trade: Trade; onClose: 
                   )}
                 </div>
 
-                {retroEditing ? (
+                {commentEditing ? (
                   <div className="space-y-3 rounded-lg border bg-muted/30 p-3">
                     {/* Rating */}
                     <div>
@@ -358,11 +370,11 @@ function TradeDetailPanel({ trade, onClose, onSaved }: { trade: Trade; onClose: 
                       <div className="flex gap-1">
                         {RATING_LABELS.map((label, i) => {
                           const value = i + 1
-                          const selected = retroRating === value
+                          const selected = commentRating === value
                           return (
                             <button
                               key={value}
-                              onClick={() => setRetroRating(selected ? null : value)}
+                              onClick={() => setCommentRating(selected ? null : value)}
                               className={`rounded-md border px-2 py-1 text-xs font-medium transition-colors ${
                                 selected ? RATING_COLORS[i] : 'border-transparent text-muted-foreground hover:bg-muted'
                               }`}
@@ -376,8 +388,8 @@ function TradeDetailPanel({ trade, onClose, onSaved }: { trade: Trade; onClose: 
 
                     {/* Content */}
                     <textarea
-                      value={retroContent}
-                      onChange={(e) => setRetroContent(e.target.value)}
+                      value={commentContent}
+                      onChange={(e) => setCommentContent(e.target.value)}
                       placeholder="이 매매에 대해 돌아보며 느낀 점을 적어보세요..."
                       maxLength={1000}
                       rows={3}
@@ -390,23 +402,23 @@ function TradeDetailPanel({ trade, onClose, onSaved }: { trade: Trade; onClose: 
                         size="sm"
                         variant="ghost"
                         onClick={() => {
-                          setRetroEditing(false)
-                          setRetroContent(trade.retrospective ?? '')
-                          setRetroRating(trade.rating)
+                          setCommentEditing(false)
+                          setCommentContent(trade.comment ?? '')
+                          setCommentRating(trade.rating)
                         }}
                       >
                         취소
                       </Button>
                       <Button
                         size="sm"
-                        disabled={(!retroContent.trim() && retroRating == null) || retroMutation.isPending}
-                        onClick={() => retroMutation.mutate()}
+                        disabled={(!commentContent.trim() && commentRating == null) || commentMutation.isPending}
+                        onClick={() => commentMutation.mutate()}
                       >
                         저장
                       </Button>
                     </div>
                   </div>
-                ) : trade.retrospective || trade.rating != null ? (
+                ) : trade.comment || trade.rating != null ? (
                   <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
                     <div className="flex items-center justify-between">
                       {trade.rating != null && (
@@ -417,19 +429,19 @@ function TradeDetailPanel({ trade, onClose, onSaved }: { trade: Trade; onClose: 
                           {RATING_LABELS[trade.rating - 1]}
                         </Badge>
                       )}
-                      {trade.retrospectiveUpdatedAt && (
+                      {trade.commentUpdatedAt && (
                         <span className="text-xs text-muted-foreground">
-                          {formatDateTime(trade.retrospectiveUpdatedAt!)}
+                          {formatDateTime(trade.commentUpdatedAt!)} (edited)
                         </span>
                       )}
                     </div>
-                    {trade.retrospective && (
-                      <p className="whitespace-pre-wrap text-sm leading-relaxed">{trade.retrospective}</p>
+                    {trade.comment && (
+                      <p className="whitespace-pre-wrap text-sm leading-relaxed">{trade.comment}</p>
                     )}
                   </div>
                 ) : (
                   <button
-                    onClick={() => setRetroEditing(true)}
+                    onClick={() => setCommentEditing(true)}
                     className="w-full rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground transition-colors hover:border-primary/30 hover:bg-muted/30 hover:text-foreground"
                   >
                     매매 회고를 작성해보세요
@@ -516,6 +528,7 @@ export default function TradeListPage() {
     mutationFn: tradesApi.delete,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['trades'] })
+      queryClient.invalidateQueries({ queryKey: ['stats'] })
       setSelectedTrade(null)
     },
   })
@@ -523,13 +536,13 @@ export default function TradeListPage() {
   const columns = [
     columnHelper.accessor('tradeDate', {
       header: '날짜',
-      cell: (info) => formatDate(info.getValue()),
+      cell: (info) => <span className="text-muted-foreground whitespace-nowrap">{formatDate(info.getValue())}</span>,
     }),
     columnHelper.accessor('ticker', {
       header: '종목',
       cell: (info) => (
-        <span className="flex items-center gap-2">
-          <TickerLogo ticker={info.getValue()} className="h-6 w-6" />
+        <span className="flex items-center gap-1.5 whitespace-nowrap">
+          <TickerLogo ticker={info.getValue()} className="h-5 w-5 shrink-0" />
           <span className="font-mono font-semibold">{info.getValue()}</span>
         </span>
       ),
@@ -548,25 +561,51 @@ export default function TradeListPage() {
       ),
     }),
     columnHelper.accessor('quantity', {
-      header: '수량',
+      header: () => <span className="block text-right">수량</span>,
       cell: (info) => {
         const v = info.getValue()
-        return Number.isInteger(v) ? v : v.toFixed(6).replace(/\.?0+$/, '')
+        return (
+          <span className="block text-right tabular-nums whitespace-nowrap">
+            {Number.isInteger(v) ? v : v.toFixed(6).replace(/\.?0+$/, '')}
+          </span>
+        )
       },
     }),
     columnHelper.accessor('entryPrice', {
-      header: '단가($)',
-      cell: (info) => `$${info.getValue().toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      header: () => <span className="block text-right">단가($)</span>,
+      cell: (info) => (
+        <span className="block text-right tabular-nums whitespace-nowrap">
+          ${info.getValue().toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        </span>
+      ),
     }),
     columnHelper.accessor('profit', {
-      header: '손익',
+      header: () => <span className="block text-right">손익($)</span>,
       cell: (info) => {
         const v = info.getValue()
-        if (v == null) return <span className="text-muted-foreground">-</span>
+        if (v == null) return <span className="block text-right text-muted-foreground">-</span>
         const formatted = Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-        if (v > 0) return <span className="font-semibold text-red-600">+${formatted}</span>
-        if (v < 0) return <span className="font-semibold text-blue-600">-${formatted}</span>
-        return <span className="text-muted-foreground">$0.00</span>
+        if (v > 0) return <span className="block text-right tabular-nums font-semibold text-red-600 whitespace-nowrap">+${formatted}</span>
+        if (v < 0) return <span className="block text-right tabular-nums font-semibold text-blue-600 whitespace-nowrap">-${formatted}</span>
+        return <span className="block text-right text-muted-foreground whitespace-nowrap">$0.00</span>
+      },
+    }),
+    columnHelper.accessor('rating', {
+      header: '회고',
+      cell: (info) => {
+        const rating = info.getValue()
+        const comment = info.row.original.comment
+        if (rating == null && !comment) return <span className="text-muted-foreground">-</span>
+        return (
+          <span className="flex items-center gap-1.5 whitespace-nowrap">
+            {rating != null && (
+              <Badge variant="outline" className={`text-xs ${RATING_COLORS[rating - 1]}`}>
+                {RATING_LABELS[rating - 1]}
+              </Badge>
+            )}
+            {comment && !rating && <MessageSquareText className="h-3.5 w-3.5 text-muted-foreground" />}
+          </span>
+        )
       },
     }),
     columnHelper.accessor('reason', {
@@ -577,9 +616,9 @@ export default function TradeListPage() {
         const hasImages = images && images.length > 0
         if (!v && !hasImages) return <span className="text-muted-foreground">-</span>
         return (
-          <span className="flex items-center gap-1.5 max-w-[200px]">
+          <span className="flex items-center gap-1.5">
             {hasImages && <ImageIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
-            {v ? <span className="truncate">{v}</span> : null}
+            {v ? <span className="line-clamp-1">{v}</span> : null}
           </span>
         )
       },
@@ -587,16 +626,19 @@ export default function TradeListPage() {
     columnHelper.display({
       id: 'actions',
       cell: ({ row }) => (
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={(e) => {
-            e.stopPropagation()
-            if (confirm('이 매매를 삭제하시겠습니까?')) deleteMutation.mutate(row.original.id)
-          }}
-        >
-          <Trash2 className="h-4 w-4 text-destructive" />
-        </Button>
+        <span className="flex justify-end">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={(e) => {
+              e.stopPropagation()
+              if (confirm('이 매매를 삭제하시겠습니까?')) deleteMutation.mutate(row.original.id)
+            }}
+          >
+            <Trash2 className="h-3.5 w-3.5 text-destructive" />
+          </Button>
+        </span>
       ),
     }),
   ]
@@ -688,7 +730,7 @@ export default function TradeListPage() {
                 {table.getHeaderGroups().map((hg) => (
                   <TableRow key={hg.id}>
                     {hg.headers.map((h) => (
-                      <TableHead key={h.id}>
+                      <TableHead key={h.id} className="h-9 px-3 text-xs">
                         {flexRender(h.column.columnDef.header, h.getContext())}
                       </TableHead>
                     ))}
@@ -710,7 +752,7 @@ export default function TradeListPage() {
                       onClick={() => setSelectedTrade(row.original)}
                     >
                       {row.getVisibleCells().map((cell) => (
-                        <TableCell key={cell.id}>
+                        <TableCell key={cell.id} className="px-3 py-2">
                           {flexRender(cell.column.columnDef.cell, cell.getContext())}
                         </TableCell>
                       ))}
@@ -753,6 +795,7 @@ export default function TradeListPage() {
           trade={selectedTrade}
           onClose={() => setSelectedTrade(null)}
           onSaved={() => setSelectedTrade(null)}
+          onTradeUpdated={(updated) => setSelectedTrade(updated)}
         />
       )}
 

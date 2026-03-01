@@ -1,7 +1,7 @@
 package com.buffettdiary.entity
 
+import com.buffettdiary.enums.AuthProvider
 import jakarta.persistence.*
-import java.time.LocalDateTime
 
 @Entity
 @Table(name = "users")
@@ -18,15 +18,10 @@ class User(
     @Column(length = 20, unique = true, nullable = false)
     var nickname: String,
 
+    @Enumerated(EnumType.STRING)
     @Column(length = 20, nullable = false)
-    val provider: String = "LOCAL",
+    val provider: AuthProvider = AuthProvider.LOCAL,
 
     @Column(name = "provider_id")
     val providerId: String? = null,
-
-    @Column(name = "created_at", nullable = false, updatable = false)
-    val createdAt: LocalDateTime = LocalDateTime.now(),
-
-    @Column(name = "updated_at", nullable = false)
-    var updatedAt: LocalDateTime = LocalDateTime.now(),
-)
+) : AuditEntity()
