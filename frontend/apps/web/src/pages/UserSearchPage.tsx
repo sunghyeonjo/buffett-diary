@@ -97,10 +97,10 @@ export default function UserSearchPage() {
           ))}
         </div>
       ) : !searchQuery ? (
-        <div className="py-20 text-center">
+        <div className="py-16 text-center">
           <Users className="mx-auto h-10 w-10 text-muted-foreground/30" />
-          <p className="mt-3 font-medium">다른 투자자를 찾아보세요</p>
-          <p className="mt-1 text-sm text-muted-foreground">닉네임으로 검색하여 팔로우하고 투자 인사이트를 공유하세요</p>
+          <p className="mt-3 font-medium">투자자를 검색해보세요</p>
+          <p className="mt-1 text-sm text-muted-foreground">닉네임으로 검색하여 팔로우하고<br/>투자 인사이트를 공유할 수 있어요</p>
         </div>
       ) : null}
     </div>

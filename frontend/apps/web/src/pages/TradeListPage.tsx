@@ -610,15 +610,16 @@ export default function TradeListPage() {
     }),
     columnHelper.accessor('reason', {
       header: '메모',
+      size: 200,
       cell: (info) => {
         const v = info.getValue()
         const images = info.row.original.images
         const hasImages = images && images.length > 0
         if (!v && !hasImages) return <span className="text-muted-foreground">-</span>
         return (
-          <span className="flex items-center gap-1.5">
+          <span className="flex items-center gap-1.5 max-w-[200px]">
             {hasImages && <ImageIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
-            {v ? <span className="line-clamp-1">{v}</span> : null}
+            {v ? <span className="truncate">{v}</span> : null}
           </span>
         )
       },

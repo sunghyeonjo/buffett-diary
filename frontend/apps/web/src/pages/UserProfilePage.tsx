@@ -5,10 +5,12 @@ import type { Journal, Trade } from '@buffett-diary/shared'
 import { useAuth } from '@/contexts/AuthContext'
 import { usersApi } from '@/api/users'
 import { followsApi } from '@/api/follows'
+import { tradeImagesApi } from '@/api/trades'
 import { formatDate } from '@/lib/date'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { ImageIcon, UserPlus, UserMinus, Grid3x3, BookOpen } from 'lucide-react'
+import { TickerLogo } from '@/components/StockLogo'
+import { ImageIcon, UserPlus, UserMinus, Grid3x3, BookOpen, X, ChevronLeft, ChevronRight, Star } from 'lucide-react'
 
 type Tab = 'journals' | 'trades'
 
@@ -19,6 +21,7 @@ export default function UserProfilePage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [tab, setTab] = useState<Tab>('journals')
+  const [selectedTrade, setSelectedTrade] = useState<Trade | null>(null)
 
   // Redirect to MyPage if viewing own profile
   useEffect(() => {
@@ -154,9 +157,16 @@ export default function UserProfilePage() {
         ) : tab === 'journals' ? (
           <JournalList journals={journals?.content ?? []} />
         ) : (
-          <TradeList trades={trades?.content ?? []} />
+          <TradeCardList trades={trades?.content ?? []} onSelect={setSelectedTrade} />
         )}
       </div>
+
+      {selectedTrade && (
+        <TradeDetailModal
+          trade={selectedTrade}
+          onClose={() => setSelectedTrade(null)}
+        />
+      )}
     </div>
   )
 }
@@ -186,38 +196,210 @@ function JournalList({ journals }: { journals: Journal[] }) {
   )
 }
 
-function TradeList({ trades }: { trades: Trade[] }) {
+function TradeCardList({ trades, onSelect }: { trades: Trade[]; onSelect: (t: Trade) => void }) {
   if (!trades.length) {
     return <div className="py-8 text-center text-muted-foreground">매매 내역이 없습니다</div>
   }
   return (
-    <div className="grid gap-2 px-1 py-2">
+    <div className="divide-y">
       {trades.map((trade) => (
-        <div key={trade.id} className="flex items-center justify-between rounded-lg border p-3">
-          <div className="flex items-center gap-3">
-            <Badge
-              variant="outline"
-              className={trade.position === 'BUY'
-                ? 'border-red-300 bg-red-50 text-red-700'
-                : 'border-blue-300 bg-blue-50 text-blue-700'}
-            >
-              {trade.position === 'BUY' ? '매수' : '매도'}
-            </Badge>
-            <div>
-              <span className="font-mono font-semibold text-sm">{trade.ticker}</span>
-              <span className="ml-2 text-xs text-muted-foreground">{formatDate(trade.tradeDate)}</span>
-            </div>
-          </div>
-          <div className="text-right">
-            <div className="text-xs text-muted-foreground">${trade.entryPrice.toLocaleString('en-US', { minimumFractionDigits: 2 })}</div>
-            {trade.profit != null && (
-              <div className={`text-sm font-semibold ${trade.profit > 0 ? 'text-red-600' : trade.profit < 0 ? 'text-blue-600' : 'text-muted-foreground'}`}>
-                {trade.profit > 0 ? '+' : ''}${Math.abs(trade.profit).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        <button
+          key={trade.id}
+          className="flex w-full items-center gap-3 overflow-hidden px-1 py-3 text-left transition-colors hover:bg-muted/30"
+          onClick={() => onSelect(trade)}
+        >
+          <TickerLogo ticker={trade.ticker} className="h-10 w-10 shrink-0" />
+          <div className="min-w-0 flex-1 overflow-hidden">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5 shrink-0">
+                <span className="font-mono text-sm font-semibold">{trade.ticker}</span>
+                <Badge
+                  variant="outline"
+                  className={`text-[10px] ${trade.position === 'BUY'
+                    ? 'border-red-300 bg-red-50 text-red-700'
+                    : 'border-blue-300 bg-blue-50 text-blue-700'}`}
+                >
+                  {trade.position === 'BUY' ? '매수' : '매도'}
+                </Badge>
               </div>
-            )}
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-[11px] text-muted-foreground">{formatDate(trade.tradeDate)}</span>
+                {trade.profit != null && (
+                  <span className={`text-sm font-semibold tabular-nums ${trade.profit > 0 ? 'text-red-600' : trade.profit < 0 ? 'text-blue-600' : 'text-muted-foreground'}`}>
+                    {trade.profit > 0 ? '+' : '-'}${Math.abs(trade.profit).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                )}
+              </div>
+            </div>
+            <p className="mt-0.5 truncate text-xs text-muted-foreground">
+              {trade.reason || `${trade.quantity}주 · $${trade.entryPrice.toLocaleString('en-US', { minimumFractionDigits: 2 })}`}
+            </p>
           </div>
-        </div>
+        </button>
       ))}
     </div>
+  )
+}
+
+function TradeDetailModal({ trade, onClose }: { trade: Trade; onClose: () => void }) {
+  const [imageUrls, setImageUrls] = useState<string[]>([])
+  const [currentImage, setCurrentImage] = useState(0)
+
+  useEffect(() => {
+    if (!trade.images.length) return
+    const urls: string[] = []
+    let cancelled = false
+
+    Promise.all(
+      trade.images.map((img) =>
+        tradeImagesApi.fetchBlob(trade.id, img.id).then(({ data: blob }) => URL.createObjectURL(blob))
+      )
+    ).then((results) => {
+      if (!cancelled) {
+        urls.push(...results)
+        setImageUrls(results)
+      }
+    }).catch(() => {})
+
+    return () => {
+      cancelled = true
+      urls.forEach((u) => URL.revokeObjectURL(u))
+    }
+  }, [trade.id, trade.images])
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+      if (e.key === 'ArrowLeft') setCurrentImage((i) => Math.max(0, i - 1))
+      if (e.key === 'ArrowRight') setCurrentImage((i) => Math.min(imageUrls.length - 1, i + 1))
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [onClose, imageUrls.length])
+
+  return (
+    <>
+      <div className="fixed inset-0 z-40 bg-black/50" onClick={onClose} />
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div
+          className="w-full max-w-lg max-h-[85vh] overflow-hidden rounded-xl border bg-background shadow-xl flex flex-col"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-center justify-between border-b px-4 py-3 shrink-0">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <TickerLogo ticker={trade.ticker} className="h-8 w-8 shrink-0" />
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <h2 className="text-sm font-semibold">{trade.ticker}</h2>
+                  <Badge
+                    variant="outline"
+                    className={`text-[10px] ${trade.position === 'BUY'
+                      ? 'border-red-300 bg-red-50 text-red-700'
+                      : 'border-blue-300 bg-blue-50 text-blue-700'}`}
+                  >
+                    {trade.position === 'BUY' ? '매수' : '매도'}
+                  </Badge>
+                </div>
+                <p className="text-xs text-muted-foreground">{formatDate(trade.tradeDate)}</p>
+              </div>
+            </div>
+            <button onClick={onClose} className="rounded-md p-1 hover:bg-muted ml-2 shrink-0">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto">
+            {imageUrls.length > 0 && (
+              <div className="relative bg-muted">
+                <img src={imageUrls[currentImage]} alt="" className="w-full max-h-80 object-contain" />
+                {imageUrls.length > 1 && (
+                  <>
+                    {currentImage > 0 && (
+                      <button
+                        className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-black/50 p-1.5 text-white hover:bg-black/70"
+                        onClick={() => setCurrentImage((i) => i - 1)}
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </button>
+                    )}
+                    {currentImage < imageUrls.length - 1 && (
+                      <button
+                        className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-black/50 p-1.5 text-white hover:bg-black/70"
+                        onClick={() => setCurrentImage((i) => i + 1)}
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </button>
+                    )}
+                    <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
+                      {imageUrls.map((_, i) => (
+                        <div
+                          key={i}
+                          className={`h-1.5 w-1.5 rounded-full ${i === currentImage ? 'bg-white' : 'bg-white/40'}`}
+                        />
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            <div className="p-4 space-y-4">
+              {trade.profit != null && (
+                <div className="rounded-lg bg-muted/50 px-4 py-3 text-center">
+                  <p className="text-xs text-muted-foreground">손익</p>
+                  <p className={`text-2xl font-bold tabular-nums ${trade.profit > 0 ? 'text-red-600' : trade.profit < 0 ? 'text-blue-600' : 'text-muted-foreground'}`}>
+                    {trade.profit > 0 ? '+' : '-'}${Math.abs(trade.profit).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </p>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <p className="text-xs text-muted-foreground">수량</p>
+                  <p className="font-medium">{trade.quantity}주</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">매입가</p>
+                  <p className="font-medium tabular-nums">${trade.entryPrice.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
+                </div>
+                {trade.exitPrice != null && (
+                  <div>
+                    <p className="text-xs text-muted-foreground">매도가</p>
+                    <p className="font-medium tabular-nums">${trade.exitPrice.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
+                  </div>
+                )}
+                {trade.rating != null && (
+                  <div>
+                    <p className="text-xs text-muted-foreground">평가</p>
+                    <div className="flex gap-0.5 mt-0.5">
+                      {[1, 2, 3, 4, 5].map((v) => (
+                        <Star
+                          key={v}
+                          className={`h-3.5 w-3.5 ${v <= trade.rating! ? 'fill-yellow-400 text-yellow-400' : 'text-muted-foreground/30'}`}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {trade.reason && (
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground">매매 메모</p>
+                  <p className="mt-1 text-sm whitespace-pre-wrap leading-relaxed">{trade.reason}</p>
+                </div>
+              )}
+
+              {trade.comment && (
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground">회고</p>
+                  <p className="mt-1 text-sm whitespace-pre-wrap leading-relaxed">{trade.comment}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
   )
 }

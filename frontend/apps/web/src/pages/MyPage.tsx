@@ -6,10 +6,12 @@ import { useAuth } from '@/contexts/AuthContext'
 import { usersApi } from '@/api/users'
 import { followsApi } from '@/api/follows'
 import { journalImagesApi } from '@/api/journals'
+import { tradeImagesApi } from '@/api/trades'
 import { formatDate } from '@/lib/date'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { ImageIcon, Settings, Grid3x3, BookOpen, X, LogOut } from 'lucide-react'
+import { TickerLogo } from '@/components/StockLogo'
+import { ImageIcon, Settings, Grid3x3, BookOpen, X, LogOut, ChevronLeft, ChevronRight, Star } from 'lucide-react'
 import EditProfileModal from '@/components/EditProfileModal'
 
 type Tab = 'journals' | 'trades'
@@ -21,6 +23,8 @@ export default function MyPage() {
   const [tab, setTab] = useState<Tab>('journals')
   const [editingProfile, setEditingProfile] = useState(false)
   const [followModal, setFollowModal] = useState<'followers' | 'following' | null>(null)
+  const [selectedJournal, setSelectedJournal] = useState<Journal | null>(null)
+  const [selectedTrade, setSelectedTrade] = useState<Trade | null>(null)
 
   const userId = user?.id ?? 0
 
@@ -114,8 +118,8 @@ export default function MyPage() {
 
       {/* Content */}
       <div className="py-1">
-        {tab === 'journals' && <JournalGrid journals={journals?.content ?? []} />}
-        {tab === 'trades' && <TradeList trades={trades?.content ?? []} />}
+        {tab === 'journals' && <JournalCardList journals={journals?.content ?? []} onSelect={setSelectedJournal} />}
+        {tab === 'trades' && <TradeCardList trades={trades?.content ?? []} onSelect={setSelectedTrade} />}
       </div>
 
       {/* Modals */}
@@ -140,12 +144,26 @@ export default function MyPage() {
           }}
         />
       )}
+
+      {selectedJournal && (
+        <JournalDetailModal
+          journal={selectedJournal}
+          onClose={() => setSelectedJournal(null)}
+        />
+      )}
+
+      {selectedTrade && (
+        <TradeDetailModal
+          trade={selectedTrade}
+          onClose={() => setSelectedTrade(null)}
+        />
+      )}
     </div>
   )
 }
 
-// --- Journal Grid ---
-function JournalGrid({ journals }: { journals: Journal[] }) {
+// --- Journal Card List ---
+function JournalCardList({ journals, onSelect }: { journals: Journal[]; onSelect: (j: Journal) => void }) {
   const navigate = useNavigate()
 
   if (!journals.length) {
@@ -161,17 +179,16 @@ function JournalGrid({ journals }: { journals: Journal[] }) {
   }
 
   return (
-    <div className="grid grid-cols-3 gap-0.5">
+    <div className="divide-y">
       {journals.map((journal) => (
-        <JournalGridItem key={journal.id} journal={journal} />
+        <JournalCard key={journal.id} journal={journal} onClick={() => onSelect(journal)} />
       ))}
     </div>
   )
 }
 
-function JournalGridItem({ journal }: { journal: Journal }) {
+function JournalCard({ journal, onClick }: { journal: Journal; onClick: () => void }) {
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null)
-  const navigate = useNavigate()
 
   useEffect(() => {
     if (!journal.images.length) return
@@ -187,41 +204,144 @@ function JournalGridItem({ journal }: { journal: Journal }) {
 
   return (
     <button
-      className="group relative aspect-square overflow-hidden bg-muted"
-      onClick={() => navigate('/journals')}
+      className="flex w-full gap-3 px-1 py-3 text-left transition-colors hover:bg-muted/30"
+      onClick={onClick}
     >
-      {thumbnailUrl ? (
-        <img src={thumbnailUrl} alt="" className="h-full w-full object-cover" />
-      ) : (
-        <div className="flex h-full w-full items-center justify-center p-2">
-          <span className="line-clamp-3 text-[11px] text-muted-foreground text-center leading-tight">{journal.title}</span>
+      {/* Thumbnail */}
+      {thumbnailUrl && (
+        <div className="h-14 w-14 shrink-0 overflow-hidden rounded-md">
+          <img src={thumbnailUrl} alt="" className="h-full w-full object-cover" />
         </div>
       )}
 
-      {/* Hover overlay */}
-      <div className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
-        <div className="text-center text-white px-1.5">
-          <p className="text-xs font-semibold line-clamp-2">{journal.title}</p>
-          {journal.images.length > 1 && (
-            <div className="mt-1 flex items-center justify-center gap-1 text-[10px]">
-              <ImageIcon className="h-3 w-3" />
-              {journal.images.length}
-            </div>
-          )}
+      {/* Text */}
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="text-sm font-semibold truncate">{journal.title}</h3>
+          <span className="shrink-0 text-[11px] text-muted-foreground">{formatDate(journal.journalDate)}</span>
         </div>
+        <p className="mt-0.5 text-xs text-muted-foreground line-clamp-1">{journal.content}</p>
+        {journal.images.length > 0 && !thumbnailUrl && (
+          <div className="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground">
+            <ImageIcon className="h-3 w-3" />
+            {journal.images.length}
+          </div>
+        )}
       </div>
-
-      {journal.images.length > 1 && (
-        <div className="absolute right-1 top-1">
-          <ImageIcon className="h-3.5 w-3.5 text-white drop-shadow" />
-        </div>
-      )}
     </button>
   )
 }
 
-// --- Trade List ---
-function TradeList({ trades }: { trades: Trade[] }) {
+// --- Journal Detail Modal ---
+function JournalDetailModal({ journal, onClose }: { journal: Journal; onClose: () => void }) {
+  const [imageUrls, setImageUrls] = useState<string[]>([])
+  const [currentImage, setCurrentImage] = useState(0)
+
+  useEffect(() => {
+    if (!journal.images.length) return
+    const urls: string[] = []
+    let cancelled = false
+
+    Promise.all(
+      journal.images.map((img) =>
+        journalImagesApi.fetchBlob(journal.id, img.id).then(({ data: blob }) => URL.createObjectURL(blob))
+      )
+    ).then((results) => {
+      if (!cancelled) {
+        urls.push(...results)
+        setImageUrls(results)
+      }
+    }).catch(() => {})
+
+    return () => {
+      cancelled = true
+      urls.forEach((u) => URL.revokeObjectURL(u))
+    }
+  }, [journal.id, journal.images])
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+      if (e.key === 'ArrowLeft') setCurrentImage((i) => Math.max(0, i - 1))
+      if (e.key === 'ArrowRight') setCurrentImage((i) => Math.min(imageUrls.length - 1, i + 1))
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [onClose, imageUrls.length])
+
+  return (
+    <>
+      <div className="fixed inset-0 z-40 bg-black/50" onClick={onClose} />
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div
+          className="w-full max-w-lg max-h-[85vh] overflow-hidden rounded-xl border bg-background shadow-xl flex flex-col"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between border-b px-4 py-3 shrink-0">
+            <div className="min-w-0">
+              <h2 className="text-sm font-semibold truncate">{journal.title}</h2>
+              <p className="text-xs text-muted-foreground">{formatDate(journal.journalDate)}</p>
+            </div>
+            <button onClick={onClose} className="rounded-md p-1 hover:bg-muted ml-2 shrink-0">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+
+          {/* Scrollable body */}
+          <div className="flex-1 overflow-y-auto">
+            {/* Image carousel */}
+            {imageUrls.length > 0 && (
+              <div className="relative bg-muted">
+                <img
+                  src={imageUrls[currentImage]}
+                  alt=""
+                  className="w-full max-h-80 object-contain"
+                />
+                {imageUrls.length > 1 && (
+                  <>
+                    {currentImage > 0 && (
+                      <button
+                        className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-black/50 p-1.5 text-white hover:bg-black/70"
+                        onClick={() => setCurrentImage((i) => i - 1)}
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </button>
+                    )}
+                    {currentImage < imageUrls.length - 1 && (
+                      <button
+                        className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-black/50 p-1.5 text-white hover:bg-black/70"
+                        onClick={() => setCurrentImage((i) => i + 1)}
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </button>
+                    )}
+                    <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
+                      {imageUrls.map((_, i) => (
+                        <div
+                          key={i}
+                          className={`h-1.5 w-1.5 rounded-full ${i === currentImage ? 'bg-white' : 'bg-white/40'}`}
+                        />
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Content */}
+            <div className="p-4">
+              <p className="text-sm whitespace-pre-wrap leading-relaxed">{journal.content}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
+  )
+}
+
+// --- Trade Card List ---
+function TradeCardList({ trades, onSelect }: { trades: Trade[]; onSelect: (t: Trade) => void }) {
   const navigate = useNavigate()
 
   if (!trades.length) {
@@ -239,33 +359,217 @@ function TradeList({ trades }: { trades: Trade[] }) {
   return (
     <div className="divide-y">
       {trades.map((trade) => (
-        <div key={trade.id} className="flex items-center justify-between px-1 py-3">
-          <div className="flex items-center gap-2.5">
-            <Badge
-              variant="outline"
-              className={`text-[10px] ${trade.position === 'BUY'
-                ? 'border-red-300 bg-red-50 text-red-700'
-                : 'border-blue-300 bg-blue-50 text-blue-700'}`}
-            >
-              {trade.position === 'BUY' ? '매수' : '매도'}
-            </Badge>
-            <div>
-              <span className="font-mono text-sm font-semibold">{trade.ticker}</span>
-              <span className="ml-2 text-xs text-muted-foreground">{formatDate(trade.tradeDate)}</span>
+        <button
+          key={trade.id}
+          className="flex w-full items-center gap-3 overflow-hidden px-1 py-3 text-left transition-colors hover:bg-muted/30"
+          onClick={() => onSelect(trade)}
+        >
+          <TickerLogo ticker={trade.ticker} className="h-10 w-10 shrink-0" />
+          <div className="min-w-0 flex-1 overflow-hidden">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5 shrink-0">
+                <span className="font-mono text-sm font-semibold">{trade.ticker}</span>
+                <Badge
+                  variant="outline"
+                  className={`text-[10px] ${trade.position === 'BUY'
+                    ? 'border-red-300 bg-red-50 text-red-700'
+                    : 'border-blue-300 bg-blue-50 text-blue-700'}`}
+                >
+                  {trade.position === 'BUY' ? '매수' : '매도'}
+                </Badge>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-[11px] text-muted-foreground">{formatDate(trade.tradeDate)}</span>
+                {trade.profit != null && (
+                  <span className={`text-sm font-semibold tabular-nums ${trade.profit > 0 ? 'text-red-600' : trade.profit < 0 ? 'text-blue-600' : 'text-muted-foreground'}`}>
+                    {trade.profit > 0 ? '+' : '-'}${Math.abs(trade.profit).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                )}
+              </div>
             </div>
+            <p className="mt-0.5 truncate text-xs text-muted-foreground">
+              {trade.reason || `${trade.quantity}주 · $${trade.entryPrice.toLocaleString('en-US', { minimumFractionDigits: 2 })}`}
+            </p>
           </div>
-          <div className="text-right">
-            {trade.profit != null ? (
-              <span className={`text-sm font-semibold tabular-nums ${trade.profit > 0 ? 'text-red-600' : trade.profit < 0 ? 'text-blue-600' : 'text-muted-foreground'}`}>
-                {trade.profit > 0 ? '+' : ''}${trade.profit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </span>
-            ) : (
-              <span className="text-xs text-muted-foreground">${trade.entryPrice.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
-            )}
-          </div>
-        </div>
+        </button>
       ))}
     </div>
+  )
+}
+
+// --- Trade Detail Modal ---
+function TradeDetailModal({ trade, onClose }: { trade: Trade; onClose: () => void }) {
+  const [imageUrls, setImageUrls] = useState<string[]>([])
+  const [currentImage, setCurrentImage] = useState(0)
+
+  useEffect(() => {
+    if (!trade.images.length) return
+    const urls: string[] = []
+    let cancelled = false
+
+    Promise.all(
+      trade.images.map((img) =>
+        tradeImagesApi.fetchBlob(trade.id, img.id).then(({ data: blob }) => URL.createObjectURL(blob))
+      )
+    ).then((results) => {
+      if (!cancelled) {
+        urls.push(...results)
+        setImageUrls(results)
+      }
+    }).catch(() => {})
+
+    return () => {
+      cancelled = true
+      urls.forEach((u) => URL.revokeObjectURL(u))
+    }
+  }, [trade.id, trade.images])
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+      if (e.key === 'ArrowLeft') setCurrentImage((i) => Math.max(0, i - 1))
+      if (e.key === 'ArrowRight') setCurrentImage((i) => Math.min(imageUrls.length - 1, i + 1))
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [onClose, imageUrls.length])
+
+  return (
+    <>
+      <div className="fixed inset-0 z-40 bg-black/50" onClick={onClose} />
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div
+          className="w-full max-w-lg max-h-[85vh] overflow-hidden rounded-xl border bg-background shadow-xl flex flex-col"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between border-b px-4 py-3 shrink-0">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <TickerLogo ticker={trade.ticker} className="h-8 w-8 shrink-0" />
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <h2 className="text-sm font-semibold">{trade.ticker}</h2>
+                  <Badge
+                    variant="outline"
+                    className={`text-[10px] ${trade.position === 'BUY'
+                      ? 'border-red-300 bg-red-50 text-red-700'
+                      : 'border-blue-300 bg-blue-50 text-blue-700'}`}
+                  >
+                    {trade.position === 'BUY' ? '매수' : '매도'}
+                  </Badge>
+                </div>
+                <p className="text-xs text-muted-foreground">{formatDate(trade.tradeDate)}</p>
+              </div>
+            </div>
+            <button onClick={onClose} className="rounded-md p-1 hover:bg-muted ml-2 shrink-0">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+
+          {/* Scrollable body */}
+          <div className="flex-1 overflow-y-auto">
+            {/* Image carousel */}
+            {imageUrls.length > 0 && (
+              <div className="relative bg-muted">
+                <img
+                  src={imageUrls[currentImage]}
+                  alt=""
+                  className="w-full max-h-80 object-contain"
+                />
+                {imageUrls.length > 1 && (
+                  <>
+                    {currentImage > 0 && (
+                      <button
+                        className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-black/50 p-1.5 text-white hover:bg-black/70"
+                        onClick={() => setCurrentImage((i) => i - 1)}
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </button>
+                    )}
+                    {currentImage < imageUrls.length - 1 && (
+                      <button
+                        className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-black/50 p-1.5 text-white hover:bg-black/70"
+                        onClick={() => setCurrentImage((i) => i + 1)}
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </button>
+                    )}
+                    <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
+                      {imageUrls.map((_, i) => (
+                        <div
+                          key={i}
+                          className={`h-1.5 w-1.5 rounded-full ${i === currentImage ? 'bg-white' : 'bg-white/40'}`}
+                        />
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Trade details */}
+            <div className="p-4 space-y-4">
+              {/* P&L */}
+              {trade.profit != null && (
+                <div className="rounded-lg bg-muted/50 px-4 py-3 text-center">
+                  <p className="text-xs text-muted-foreground">손익</p>
+                  <p className={`text-2xl font-bold tabular-nums ${trade.profit > 0 ? 'text-red-600' : trade.profit < 0 ? 'text-blue-600' : 'text-muted-foreground'}`}>
+                    {trade.profit > 0 ? '+' : '-'}${Math.abs(trade.profit).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </p>
+                </div>
+              )}
+
+              {/* Info grid */}
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <p className="text-xs text-muted-foreground">수량</p>
+                  <p className="font-medium">{trade.quantity}주</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">매입가</p>
+                  <p className="font-medium tabular-nums">${trade.entryPrice.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
+                </div>
+                {trade.exitPrice != null && (
+                  <div>
+                    <p className="text-xs text-muted-foreground">매도가</p>
+                    <p className="font-medium tabular-nums">${trade.exitPrice.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
+                  </div>
+                )}
+                {trade.rating != null && (
+                  <div>
+                    <p className="text-xs text-muted-foreground">평가</p>
+                    <div className="flex gap-0.5 mt-0.5">
+                      {[1, 2, 3, 4, 5].map((v) => (
+                        <Star
+                          key={v}
+                          className={`h-3.5 w-3.5 ${v <= trade.rating! ? 'fill-yellow-400 text-yellow-400' : 'text-muted-foreground/30'}`}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Reason */}
+              {trade.reason && (
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground">매매 메모</p>
+                  <p className="mt-1 text-sm whitespace-pre-wrap leading-relaxed">{trade.reason}</p>
+                </div>
+              )}
+
+              {/* Comment (회고) */}
+              {trade.comment && (
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground">회고</p>
+                  <p className="mt-1 text-sm whitespace-pre-wrap leading-relaxed">{trade.comment}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
   )
 }
 

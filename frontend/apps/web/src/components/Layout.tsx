@@ -29,7 +29,10 @@ export default function Layout() {
       {/* Desktop Sidebar */}
       <aside className="hidden w-56 flex-col border-r bg-card md:flex">
         <div className="px-5 py-6">
-          <img src="/logo.svg" alt="dayed" className="h-7" />
+          <Link to="/" className="flex items-center gap-2">
+            <img src="/logo.svg" alt="dayed" className="h-7 w-7" />
+            <span className="text-lg font-bold">dayed</span>
+          </Link>
         </div>
 
         <nav className="flex flex-1 flex-col gap-0.5 px-3">
@@ -85,7 +88,10 @@ export default function Layout() {
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Mobile top bar */}
         <header className="flex items-center justify-between border-b px-4 py-3 md:hidden">
-          <img src="/logo.svg" alt="dayed" className="h-6" />
+          <Link to="/" className="flex items-center gap-1.5">
+            <img src="/logo.svg" alt="dayed" className="h-6 w-6" />
+            <span className="text-base font-bold">dayed</span>
+          </Link>
           <button
             onClick={() => navigate('/mypage')}
             className={cn(
