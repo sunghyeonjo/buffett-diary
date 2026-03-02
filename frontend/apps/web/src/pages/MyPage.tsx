@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/badge'
 import { TickerLogo } from '@/components/StockLogo'
 import { ImageIcon, Settings, Grid3x3, BookOpen, X, LogOut, ChevronLeft, ChevronRight, Star } from 'lucide-react'
 import EditProfileModal from '@/components/EditProfileModal'
+import TradeCommentSection from '@/components/TradeCommentSection'
 
 type Tab = 'journals' | 'trades'
 
@@ -551,13 +552,8 @@ function TradeDetailModal({ trade, onClose }: { trade: Trade; onClose: () => voi
                 </div>
               )}
 
-              {/* Comment (회고) */}
-              {trade.comment && (
-                <div>
-                  <p className="text-xs font-medium text-muted-foreground">회고</p>
-                  <p className="mt-1 text-sm whitespace-pre-wrap leading-relaxed">{trade.comment}</p>
-                </div>
-              )}
+              {/* Comments */}
+              <TradeCommentSection tradeId={trade.id} canComment />
             </div>
           </div>
         </div>

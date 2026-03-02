@@ -1,4 +1,4 @@
-import type { Trade, TradeRequest, TradeFilter, PageResponse, TradeStats, TradeImageMeta, TradeCommentRequest } from '@buffett-diary/shared'
+import type { Trade, TradeRequest, TradeFilter, PageResponse, TradeStats, TradeImageMeta, TradeCommentRequest, TradeRatingRequest, TradeComment } from '@buffett-diary/shared'
 import client from './client'
 
 export const tradesApi = {
@@ -25,12 +25,27 @@ export const tradesApi = {
   },
 }
 
-export const tradeCommentApi = {
-  update(tradeId: number, data: TradeCommentRequest) {
-    return client.put<Trade>(`/trades/${tradeId}/comment`, data)
+export const tradeRatingApi = {
+  update(tradeId: number, data: TradeRatingRequest) {
+    return client.put<Trade>(`/trades/${tradeId}/rating`, data)
   },
-  delete(tradeId: number) {
-    return client.delete(`/trades/${tradeId}/comment`)
+}
+
+export const tradeCommentsApi = {
+  list(tradeId: number) {
+    return client.get<TradeComment[]>(`/trades/${tradeId}/comments`)
+  },
+  create(tradeId: number, data: TradeCommentRequest) {
+    return client.post<TradeComment>(`/trades/${tradeId}/comments`, data)
+  },
+  reply(tradeId: number, commentId: number, data: TradeCommentRequest) {
+    return client.post<TradeComment>(`/trades/${tradeId}/comments/${commentId}/replies`, data)
+  },
+  update(tradeId: number, commentId: number, data: TradeCommentRequest) {
+    return client.put<TradeComment>(`/trades/${tradeId}/comments/${commentId}`, data)
+  },
+  delete(tradeId: number, commentId: number) {
+    return client.delete(`/trades/${tradeId}/comments/${commentId}`)
   },
 }
 

@@ -20,9 +20,8 @@ export interface Trade {
   exitPrice: number | null
   profit: number | null
   reason: string | null
-  comment: string | null
   rating: number | null
-  commentUpdatedAt: string | null
+  commentCount: number
   createdAt: string
   updatedAt: string
   images: TradeImageMeta[]
@@ -40,8 +39,22 @@ export interface TradeRequest {
 }
 
 export interface TradeCommentRequest {
-  content?: string | null
-  rating?: number | null
+  content: string
+}
+
+export interface TradeRatingRequest {
+  rating: number | null
+}
+
+export interface TradeComment {
+  id: number
+  tradeId: number
+  userId: number
+  nickname: string
+  parentId: number | null
+  content: string
+  createdAt: string
+  updatedAt: string
 }
 
 export interface TradeFilter {

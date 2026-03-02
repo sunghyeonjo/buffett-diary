@@ -2,6 +2,7 @@ package com.buffettdiary.service
 
 import com.buffettdiary.dto.*
 import com.buffettdiary.repository.JournalRepository
+import com.buffettdiary.repository.TradeCommentRepository
 import com.buffettdiary.repository.TradeRepository
 import com.buffettdiary.repository.UserRepository
 import org.springframework.data.domain.PageRequest
@@ -16,6 +17,7 @@ class FeedService(
     private val userRepository: UserRepository,
     private val journalImageService: JournalImageService,
     private val tradeImageService: TradeImageService,
+    private val tradeCommentRepository: TradeCommentRepository,
 ) {
     @Transactional(readOnly = true)
     fun feed(userId: Long, page: Int, size: Int): PageResponse<FeedItem> {
@@ -90,9 +92,8 @@ class FeedService(
                     exitPrice = trade.exitPrice,
                     profit = trade.profit,
                     reason = trade.reason,
-                    comment = trade.comment,
                     rating = trade.rating,
-                    commentUpdatedAt = trade.commentUpdatedAt?.toString(),
+                    commentCount = tradeCommentRepository.countByTradeId(trade.id),
                     createdAt = trade.createdAt.toString(),
                     updatedAt = trade.updatedAt.toString(),
                     images = tradeImagesMap[trade.id] ?: emptyList(),

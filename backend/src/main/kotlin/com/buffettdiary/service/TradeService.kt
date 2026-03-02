@@ -6,6 +6,7 @@ import com.buffettdiary.enums.Position
 import com.buffettdiary.exception.BadRequestException
 import com.buffettdiary.exception.ForbiddenException
 import com.buffettdiary.exception.NotFoundException
+import com.buffettdiary.repository.TradeCommentRepository
 import com.buffettdiary.repository.TradeRepository
 import org.springframework.cache.annotation.CacheEvict
 import org.springframework.cache.annotation.Cacheable
@@ -21,6 +22,7 @@ import java.time.LocalDate
 class TradeService(
     private val tradeRepository: TradeRepository,
     private val tradeImageService: TradeImageService,
+    private val tradeCommentRepository: TradeCommentRepository,
 ) {
     @Transactional(readOnly = true)
     @Cacheable(value = ["trades"], key = "#userId + '-' + #startDate + '-' + #endDate + '-' + #ticker + '-' + #position + '-' + #page + '-' + #size")
@@ -37,9 +39,10 @@ class TradeService(
         val trades = result.content
         val tradeIds = trades.map { it.id }
         val imagesMap = tradeImageService.getImageMetasByTradeIds(tradeIds, userId)
+        val commentCounts = tradeIds.associateWith { tradeCommentRepository.countByTradeId(it) }
 
         return PageResponse(
-            content = trades.map { it.toResponse(imagesMap[it.id] ?: emptyList()) },
+            content = trades.map { it.toResponse(imagesMap[it.id] ?: emptyList(), commentCounts[it.id] ?: 0) },
             totalElements = result.totalElements,
             totalPages = result.totalPages,
             page = page,
@@ -54,7 +57,8 @@ class TradeService(
             .orElseThrow { NotFoundException("Trade not found") }
         if (trade.userId != userId) throw ForbiddenException("Not authorized")
         val images = tradeImageService.getImageMetas(id, userId)
-        return trade.toResponse(images)
+        val commentCount = tradeCommentRepository.countByTradeId(id)
+        return trade.toResponse(images, commentCount)
     }
 
     @Transactional
@@ -95,6 +99,7 @@ class TradeService(
             .orElseThrow { NotFoundException("Trade not found") }
         if (trade.userId != userId) throw ForbiddenException("Not authorized")
         tradeImageService.deleteByTradeId(id)
+        tradeCommentRepository.deleteByTradeId(id)
         tradeRepository.delete(trade)
     }
 
@@ -145,27 +150,14 @@ class TradeService(
 
     @Transactional
     @CacheEvict(value = ["trades", "tradeDetail"], allEntries = true)
-    fun updateComment(userId: Long, id: Long, request: TradeCommentRequest): TradeResponse {
+    fun updateRating(userId: Long, id: Long, request: TradeRatingRequest): TradeResponse {
         val trade = tradeRepository.findById(id)
             .orElseThrow { NotFoundException("Trade not found") }
         if (trade.userId != userId) throw ForbiddenException("Not authorized")
         if (request.rating != null && request.rating !in 1..5) throw BadRequestException("Rating must be 1-5")
-        trade.comment = request.content
         trade.rating = request.rating
-        trade.commentUpdatedAt = java.time.LocalDateTime.now()
-        return tradeRepository.save(trade).toResponse()
-    }
-
-    @Transactional
-    @CacheEvict(value = ["trades", "tradeDetail"], allEntries = true)
-    fun deleteComment(userId: Long, id: Long) {
-        val trade = tradeRepository.findById(id)
-            .orElseThrow { NotFoundException("Trade not found") }
-        if (trade.userId != userId) throw ForbiddenException("Not authorized")
-        trade.comment = null
-        trade.rating = null
-        trade.commentUpdatedAt = null
-        tradeRepository.save(trade)
+        val commentCount = tradeCommentRepository.countByTradeId(id)
+        return tradeRepository.save(trade).toResponse(commentCount = commentCount)
     }
 
     private fun buildTrade(userId: Long, request: TradeRequest): Trade {
@@ -182,7 +174,7 @@ class TradeService(
         )
     }
 
-    private fun Trade.toResponse(images: List<TradeImageResponse> = emptyList()) = TradeResponse(
+    private fun Trade.toResponse(images: List<TradeImageResponse> = emptyList(), commentCount: Long = 0) = TradeResponse(
         id = id,
         userId = userId,
         tradeDate = tradeDate.toString(),
@@ -193,9 +185,8 @@ class TradeService(
         exitPrice = exitPrice,
         profit = profit,
         reason = reason,
-        comment = comment,
         rating = rating,
-        commentUpdatedAt = commentUpdatedAt?.toString(),
+        commentCount = commentCount,
         createdAt = createdAt.toString(),
         updatedAt = updatedAt.toString(),
         images = images,

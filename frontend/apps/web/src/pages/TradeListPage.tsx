@@ -8,8 +8,8 @@ import {
 } from '@tanstack/react-table'
 import type { Trade, TradeFilter } from '@buffett-diary/shared'
 import dayjs from 'dayjs'
-import { tradesApi, tradeImagesApi, tradeCommentApi } from '@/api/trades'
-import { formatDate, formatDateTime, toDateString } from '@/lib/date'
+import { tradesApi, tradeImagesApi, tradeRatingApi } from '@/api/trades'
+import { formatDate, toDateString } from '@/lib/date'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -20,16 +20,32 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Plus, Pencil, Trash2, ImageIcon, X, Download, ChevronLeft, ChevronRight, List, MessageSquareText } from 'lucide-react'
+import { Plus, Pencil, Trash2, ImageIcon, X, Download, ChevronLeft, ChevronRight, List, MessageSquare } from 'lucide-react'
 import { TickerCombobox } from '@/components/TickerCombobox'
 import TradeFormModal from '@/components/TradeFormModal'
 import BulkTradeModal from '@/components/BulkTradeModal'
 import TradeForm from '@/components/TradeForm'
+import TradeCommentSection from '@/components/TradeCommentSection'
 import { TickerLogo } from '@/components/StockLogo'
 
 const columnHelper = createColumnHelper<Trade>()
 
-const INITIAL_FILTER: TradeFilter = { page: 0, size: 20 }
+const periodToDates = (p: string): { startDate?: string; endDate?: string } => {
+  if (!p) return { startDate: undefined, endDate: undefined }
+  const today = dayjs()
+  const end = toDateString(today)
+  if (p === 'today') return { startDate: end, endDate: end }
+  if (p === 'week') return { startDate: toDateString(today.startOf('week').add(1, 'day')), endDate: end }
+  if (p === 'month') return { startDate: toDateString(today.startOf('month')), endDate: end }
+  return { startDate: undefined, endDate: undefined }
+}
+
+const INITIAL_PERIOD = 'today'
+const INITIAL_FILTER: TradeFilter = {
+  page: 0,
+  size: 20,
+  ...periodToDates(INITIAL_PERIOD),
+}
 
 // --- Image Viewer ---
 
@@ -130,37 +146,21 @@ function TradeDetailPanel({ trade, onClose, onSaved, onTradeUpdated }: { trade: 
   const [viewerIndex, setViewerIndex] = useState<number | null>(null)
   const [editing, setEditing] = useState(false)
   const [selectedImageIndex, setSelectedImageIndex] = useState(0)
-  const [commentEditing, setCommentEditing] = useState(false)
-  const [commentContent, setCommentContent] = useState(trade.comment ?? '')
-  const [commentRating, setCommentRating] = useState<number | null>(trade.rating)
+  const [ratingEditing, setRatingEditing] = useState(false)
+  const [ratingValue, setRatingValue] = useState<number | null>(trade.rating)
 
-  // trade prop 변경 시 로컬 상태 동기화
   useEffect(() => {
-    if (!commentEditing) {
-      setCommentContent(trade.comment ?? '')
-      setCommentRating(trade.rating)
+    if (!ratingEditing) {
+      setRatingValue(trade.rating)
     }
-  }, [trade.comment, trade.rating]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [trade.rating]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const commentMutation = useMutation({
-    mutationFn: () =>
-      tradeCommentApi.update(trade.id, { content: commentContent.trim() || null, rating: commentRating }),
+  const ratingMutation = useMutation({
+    mutationFn: () => tradeRatingApi.update(trade.id, { rating: ratingValue }),
     onSuccess: ({ data: updated }) => {
       queryClient.invalidateQueries({ queryKey: ['trades'] })
       onTradeUpdated(updated)
-      setCommentEditing(false)
-    },
-  })
-
-  const commentDeleteMutation = useMutation({
-    mutationFn: () => tradeCommentApi.delete(trade.id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['trades'] })
-      const cleared = { ...trade, comment: null, rating: null, commentUpdatedAt: null }
-      onTradeUpdated(cleared)
-      setCommentContent('')
-      setCommentRating(null)
-      setCommentEditing(false)
+      setRatingEditing(false)
     },
   })
 
@@ -334,120 +334,60 @@ function TradeDetailPanel({ trade, onClose, onSaved, onTradeUpdated }: { trade: 
                 )
               })()}
 
-              {/* Comment (회고) */}
+              {/* Rating (매매 평가) */}
               <div>
                 <div className="mb-2 flex items-center justify-between">
-                  <h3 className="text-sm font-medium text-muted-foreground">회고</h3>
-                  {!commentEditing && (trade.comment || trade.rating != null) && (
-                    <div className="flex gap-1">
-                      <button
-                        className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-                        onClick={() => {
-                          setCommentContent(trade.comment ?? '')
-                          setCommentRating(trade.rating)
-                          setCommentEditing(true)
-                        }}
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </button>
-                      <button
-                        className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-destructive"
-                        onClick={() => {
-                          if (confirm('회고를 삭제하시겠습니까?')) commentDeleteMutation.mutate()
-                        }}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
+                  <h3 className="text-sm font-medium text-muted-foreground">매매 평가</h3>
+                  {!ratingEditing && trade.rating != null && (
+                    <button
+                      className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                      onClick={() => { setRatingValue(trade.rating); setRatingEditing(true) }}
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
                   )}
                 </div>
 
-                {commentEditing ? (
+                {ratingEditing ? (
                   <div className="space-y-3 rounded-lg border bg-muted/30 p-3">
-                    {/* Rating */}
-                    <div>
-                      <p className="mb-1.5 text-xs text-muted-foreground">매매 평가</p>
-                      <div className="flex gap-1">
-                        {RATING_LABELS.map((label, i) => {
-                          const value = i + 1
-                          const selected = commentRating === value
-                          return (
-                            <button
-                              key={value}
-                              onClick={() => setCommentRating(selected ? null : value)}
-                              className={`rounded-md border px-2 py-1 text-xs font-medium transition-colors ${
-                                selected ? RATING_COLORS[i] : 'border-transparent text-muted-foreground hover:bg-muted'
-                              }`}
-                            >
-                              {label}
-                            </button>
-                          )
-                        })}
-                      </div>
+                    <div className="flex gap-1">
+                      {RATING_LABELS.map((label, i) => {
+                        const value = i + 1
+                        const selected = ratingValue === value
+                        return (
+                          <button
+                            key={value}
+                            onClick={() => setRatingValue(selected ? null : value)}
+                            className={`rounded-md border px-2 py-1 text-xs font-medium transition-colors ${
+                              selected ? RATING_COLORS[i] : 'border-transparent text-muted-foreground hover:bg-muted'
+                            }`}
+                          >
+                            {label}
+                          </button>
+                        )
+                      })}
                     </div>
-
-                    {/* Content */}
-                    <textarea
-                      value={commentContent}
-                      onChange={(e) => setCommentContent(e.target.value)}
-                      placeholder="이 매매에 대해 돌아보며 느낀 점을 적어보세요..."
-                      maxLength={1000}
-                      rows={3}
-                      className="w-full resize-none rounded-md border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                    />
-
-                    {/* Actions */}
                     <div className="flex justify-end gap-2">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => {
-                          setCommentEditing(false)
-                          setCommentContent(trade.comment ?? '')
-                          setCommentRating(trade.rating)
-                        }}
-                      >
-                        취소
-                      </Button>
-                      <Button
-                        size="sm"
-                        disabled={(!commentContent.trim() && commentRating == null) || commentMutation.isPending}
-                        onClick={() => commentMutation.mutate()}
-                      >
-                        저장
-                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => { setRatingEditing(false); setRatingValue(trade.rating) }}>취소</Button>
+                      <Button size="sm" disabled={ratingMutation.isPending} onClick={() => ratingMutation.mutate()}>저장</Button>
                     </div>
                   </div>
-                ) : trade.comment || trade.rating != null ? (
-                  <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
-                    <div className="flex items-center justify-between">
-                      {trade.rating != null && (
-                        <Badge
-                          variant="outline"
-                          className={RATING_COLORS[trade.rating - 1]}
-                        >
-                          {RATING_LABELS[trade.rating - 1]}
-                        </Badge>
-                      )}
-                      {trade.commentUpdatedAt && (
-                        <span className="text-xs text-muted-foreground">
-                          {formatDateTime(trade.commentUpdatedAt!)} (edited)
-                        </span>
-                      )}
-                    </div>
-                    {trade.comment && (
-                      <p className="whitespace-pre-wrap text-sm leading-relaxed">{trade.comment}</p>
-                    )}
-                  </div>
+                ) : trade.rating != null ? (
+                  <Badge variant="outline" className={RATING_COLORS[trade.rating - 1]}>
+                    {RATING_LABELS[trade.rating - 1]}
+                  </Badge>
                 ) : (
                   <button
-                    onClick={() => setCommentEditing(true)}
-                    className="w-full rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground transition-colors hover:border-primary/30 hover:bg-muted/30 hover:text-foreground"
+                    onClick={() => setRatingEditing(true)}
+                    className="w-full rounded-lg border border-dashed p-3 text-center text-sm text-muted-foreground transition-colors hover:border-primary/30 hover:bg-muted/30 hover:text-foreground"
                   >
-                    매매 회고를 작성해보세요
+                    매매 평가를 남겨보세요
                   </button>
                 )}
               </div>
+
+              {/* Comments */}
+              <TradeCommentSection tradeId={trade.id} canComment />
             </div>
 
             {/* Footer */}
@@ -492,22 +432,12 @@ export default function TradeListPage() {
   const [formTradeId, setFormTradeId] = useState<number | 'new' | null>(null)
   const [bulkOpen, setBulkOpen] = useState(false)
 
-  const [period, setPeriod] = useState('')
+  const [period, setPeriod] = useState('today')
   const [ticker, setTicker] = useState('')
   const [position, setPosition] = useState('')
 
   const updateFilter = (patch: Partial<TradeFilter>) => {
     setFilter((f) => ({ ...f, ...patch, page: 0 }))
-  }
-
-  const periodToDates = (p: string): { startDate?: string; endDate?: string } => {
-    if (!p) return { startDate: undefined, endDate: undefined }
-    const today = dayjs()
-    const end = toDateString(today)
-    if (p === 'today') return { startDate: end, endDate: end }
-    if (p === 'week') return { startDate: toDateString(today.startOf('week').add(1, 'day')), endDate: end }
-    if (p === 'month') return { startDate: toDateString(today.startOf('month')), endDate: end }
-    return { startDate: undefined, endDate: undefined }
   }
 
   const resetFilters = () => {
@@ -591,11 +521,11 @@ export default function TradeListPage() {
       },
     }),
     columnHelper.accessor('rating', {
-      header: '회고',
+      header: '평가',
       cell: (info) => {
         const rating = info.getValue()
-        const comment = info.row.original.comment
-        if (rating == null && !comment) return <span className="text-muted-foreground">-</span>
+        const commentCount = info.row.original.commentCount
+        if (rating == null && !commentCount) return <span className="text-muted-foreground">-</span>
         return (
           <span className="flex items-center gap-1.5 whitespace-nowrap">
             {rating != null && (
@@ -603,7 +533,12 @@ export default function TradeListPage() {
                 {RATING_LABELS[rating - 1]}
               </Badge>
             )}
-            {comment && !rating && <MessageSquareText className="h-3.5 w-3.5 text-muted-foreground" />}
+            {commentCount > 0 && (
+              <span className="flex items-center gap-0.5 text-xs text-muted-foreground">
+                <MessageSquare className="h-3 w-3" />
+                {commentCount}
+              </span>
+            )}
           </span>
         )
       },
@@ -669,7 +604,7 @@ export default function TradeListPage() {
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex gap-1 rounded-lg border bg-muted p-1">
-          {([['', '전체'], ['today', '오늘'], ['week', '이번 주'], ['month', '이번 달']] as const).map(([value, label]) => (
+          {([['today', '오늘'], ['week', '이번 주'], ['month', '이번 달'], ['', '전체']] as const).map(([value, label]) => (
             <button
               key={value}
               onClick={() => {

@@ -101,20 +101,14 @@ class TradeController(
         return ResponseEntity.noContent().build()
     }
 
-    // --- Comment endpoints ---
+    // --- Rating endpoint ---
 
-    @PutMapping("/{id}/comment")
-    fun updateComment(
+    @PutMapping("/{id}/rating")
+    fun updateRating(
         auth: Authentication,
         @PathVariable id: Long,
-        @Valid @RequestBody request: TradeCommentRequest,
+        @Valid @RequestBody request: TradeRatingRequest,
     ): ResponseEntity<TradeResponse> {
-        return ResponseEntity.ok(tradeService.updateComment(userId(auth), id, request))
-    }
-
-    @DeleteMapping("/{id}/comment")
-    fun deleteComment(auth: Authentication, @PathVariable id: Long): ResponseEntity<Void> {
-        tradeService.deleteComment(userId(auth), id)
-        return ResponseEntity.noContent().build()
+        return ResponseEntity.ok(tradeService.updateRating(userId(auth), id, request))
     }
 }

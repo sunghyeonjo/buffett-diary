@@ -4,7 +4,6 @@ import com.buffettdiary.enums.Position
 import jakarta.persistence.*
 import java.math.BigDecimal
 import java.time.LocalDate
-import java.time.LocalDateTime
 
 @Entity
 @Table(name = "trades", indexes = [Index(columnList = "user_id, trade_date")])
@@ -40,11 +39,5 @@ class Trade(
     @Column(columnDefinition = "TEXT")
     var reason: String? = null,
 
-    @Column(name = "comment", columnDefinition = "TEXT")
-    var comment: String? = null,
-
     var rating: Int? = null,
-
-    @Column(name = "comment_updated_at")
-    var commentUpdatedAt: LocalDateTime? = null,
 ) : AuditEntity()

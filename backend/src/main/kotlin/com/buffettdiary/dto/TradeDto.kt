@@ -30,9 +30,8 @@ data class TradeResponse(
     val exitPrice: BigDecimal?,
     val profit: BigDecimal?,
     val reason: String?,
-    val comment: String?,
     val rating: Int?,
-    val commentUpdatedAt: String?,
+    val commentCount: Long,
     val createdAt: String,
     val updatedAt: String,
     val images: List<TradeImageResponse> = emptyList(),
@@ -74,8 +73,22 @@ class TradeImageDataResponse(
 )
 
 data class TradeCommentRequest(
-    @field:Size(max = 1000) val content: String? = null,
+    @field:Size(max = 1000) val content: String,
+)
+
+data class TradeRatingRequest(
     val rating: Int? = null,
+)
+
+data class TradeCommentResponse(
+    val id: Long,
+    val tradeId: Long,
+    val userId: Long,
+    val nickname: String,
+    val parentId: Long?,
+    val content: String,
+    val createdAt: String,
+    val updatedAt: String,
 )
 
 data class TradeStatsResponse(

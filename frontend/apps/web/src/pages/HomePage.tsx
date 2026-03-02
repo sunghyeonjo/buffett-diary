@@ -10,13 +10,13 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { TickerLogo } from '@/components/StockLogo'
-import { ImageIcon, Search, TrendingUp, TrendingDown, ArrowRight, BookOpen } from 'lucide-react'
+import { ImageIcon, Search, TrendingUp, TrendingDown, ArrowRight } from 'lucide-react'
 
 function getGreetingSubtitle(): string {
   const hour = new Date().getHours()
   if (hour < 12) return '좋은 아침입니다 ☀️'
   if (hour < 18) return '활기찬 하루 보내고 계신가요? 🌤️'
-  return '벌써 저녁이네요 🌙'
+  return '마음을 편하게 가지고 오늘을 잘 마무리하세요 🌙'
 }
 
 type Period = 'today' | 'week' | 'month' | 'all'
@@ -31,7 +31,7 @@ const PERIOD_TABS: { label: string; period: Period }[] = [
 export default function HomePage() {
   const { user } = useAuth()
   const navigate = useNavigate()
-  const [period, setPeriod] = useState<Period>('month')
+  const [period, setPeriod] = useState<Period>('today')
   const [feedPage, setFeedPage] = useState(0)
 
   const { data: stats } = useQuery<TradeStats>({
