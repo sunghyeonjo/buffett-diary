@@ -378,14 +378,7 @@ function TradeCardList({ trades, onSelect }: { trades: Trade[]; onSelect: (t: Tr
                   {trade.position === 'BUY' ? '매수' : '매도'}
                 </Badge>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <span className="text-[11px] text-muted-foreground">{formatDate(trade.tradeDate)}</span>
-                {trade.profit != null && (
-                  <span className={`text-sm font-semibold tabular-nums ${trade.profit > 0 ? 'text-red-600' : trade.profit < 0 ? 'text-blue-600' : 'text-muted-foreground'}`}>
-                    {trade.profit > 0 ? '+' : '-'}${Math.abs(trade.profit).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </span>
-                )}
-              </div>
+              <span className="text-[11px] text-muted-foreground shrink-0">{formatDate(trade.tradeDate)}</span>
             </div>
             <p className="mt-0.5 truncate text-xs text-muted-foreground">
               {trade.reason || `${trade.quantity}주 · $${trade.entryPrice.toLocaleString('en-US', { minimumFractionDigits: 2 })}`}
@@ -514,7 +507,7 @@ function TradeDetailModal({ trade, onClose }: { trade: Trade; onClose: () => voi
                 <div className="rounded-lg bg-muted/50 px-4 py-3 text-center">
                   <p className="text-xs text-muted-foreground">손익</p>
                   <p className={`text-2xl font-bold tabular-nums ${trade.profit > 0 ? 'text-red-600' : trade.profit < 0 ? 'text-blue-600' : 'text-muted-foreground'}`}>
-                    {trade.profit > 0 ? '+' : '-'}${Math.abs(trade.profit).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    {trade.profit > 0 ? '+' : trade.profit < 0 ? '-' : ''}${Math.abs(trade.profit).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </p>
                 </div>
               )}
