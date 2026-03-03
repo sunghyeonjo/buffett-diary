@@ -9,8 +9,9 @@ import { authApi } from '@/api/auth'
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('')
+  const [email, setEmail] = useState(() => localStorage.getItem('savedEmail') ?? '')
   const [password, setPassword] = useState('')
+  const [rememberEmail, setRememberEmail] = useState(() => !!localStorage.getItem('savedEmail'))
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -20,6 +21,11 @@ export default function LoginPage() {
     setLoading(true)
     try {
       const { data } = await authApi.login({ email, password })
+      if (rememberEmail) {
+        localStorage.setItem('savedEmail', email)
+      } else {
+        localStorage.removeItem('savedEmail')
+      }
       localStorage.setItem('accessToken', data.accessToken)
       localStorage.setItem('refreshToken', data.refreshToken)
       localStorage.setItem('user', JSON.stringify(data.user))
@@ -65,6 +71,15 @@ export default function LoginPage() {
                 required
               />
             </div>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={rememberEmail}
+                onChange={(e) => setRememberEmail(e.target.checked)}
+                className="rounded border-input"
+              />
+              <span className="text-muted-foreground">이메일 기억하기</span>
+            </label>
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? '로그인 중...' : '로그인'}
             </Button>

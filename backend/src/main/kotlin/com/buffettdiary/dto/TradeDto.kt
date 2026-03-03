@@ -30,10 +30,13 @@ data class TradeResponse(
     val exitPrice: BigDecimal?,
     val profit: BigDecimal?,
     val reason: String?,
-    val rating: Int?,
+    val likeCount: Long,
+    val dislikeCount: Long,
+    val myLike: Boolean?,
     val commentCount: Long,
     val createdAt: String,
     val updatedAt: String,
+    val stockInfo: StockSummary? = null,
     val images: List<TradeImageResponse> = emptyList(),
 ) : Serializable {
     companion object {
@@ -76,8 +79,8 @@ data class TradeCommentRequest(
     @field:Size(max = 1000) val content: String,
 )
 
-data class TradeRatingRequest(
-    val rating: Int? = null,
+data class TradeLikeRequest(
+    val liked: Boolean? = null,
 )
 
 data class TradeCommentResponse(
@@ -111,6 +114,17 @@ data class TradeStatsResponse(
 data class StockResponse(
     val ticker: String,
     val nameEn: String,
+    val nameKo: String?,
+    val logoUrl: String?,
+    val sector: String?,
+    val exchange: String?,
+) : Serializable {
+    companion object {
+        private const val serialVersionUID = 1L
+    }
+}
+
+data class StockSummary(
     val nameKo: String?,
     val logoUrl: String?,
 ) : Serializable {

@@ -6,7 +6,8 @@ import { feedApi } from '@/api/feed'
 import { formatDate } from '@/lib/date'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { ImageIcon } from 'lucide-react'
+import { ImageIcon, ThumbsUp, ThumbsDown, MessageSquare } from 'lucide-react'
+import { TickerLogo } from '@/components/StockLogo'
 
 export default function FeedPage() {
   const navigate = useNavigate()
@@ -87,42 +88,66 @@ function FeedCard({ item, onAuthorClick }: { item: FeedItem; onAuthorClick: (id:
 
   if (item.type === 'trade' && item.trade) {
     const trade = item.trade
+    const authorInitial = item.author.nickname.charAt(0).toUpperCase()
+    const borderColor = trade.position === 'BUY' ? 'border-l-red-400' : 'border-l-blue-400'
     return (
-      <div className="rounded-lg border p-4">
-        <div className="flex items-center gap-2 text-sm">
+      <div className={`rounded-lg border border-l-4 ${borderColor} px-3 py-2.5`}>
+        {/* Row 1: author + ticker + badge + date */}
+        <div className="flex items-center gap-2">
           <button
-            className="font-semibold hover:underline"
             onClick={() => onAuthorClick(item.author.id)}
+            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary/80 to-primary text-[10px] font-bold text-primary-foreground"
           >
+            {authorInitial}
+          </button>
+          <button className="text-sm font-semibold hover:underline" onClick={() => onAuthorClick(item.author.id)}>
             {item.author.nickname}
           </button>
-          <span className="text-muted-foreground">매매</span>
-          <span className="text-muted-foreground">{formatDate(trade.tradeDate)}</span>
+          <span className="text-muted-foreground">·</span>
+          <TickerLogo ticker={trade.ticker} stockInfo={trade.stockInfo} className="h-5 w-5 shrink-0" />
+          <span className="font-mono text-sm font-semibold">{trade.ticker}</span>
+          <Badge
+            variant="outline"
+            className={`text-[10px] py-0 ${trade.position === 'BUY'
+              ? 'border-red-300 bg-red-50 text-red-700'
+              : 'border-blue-300 bg-blue-50 text-blue-700'}`}
+          >
+            {trade.position === 'BUY' ? '매수' : '매도'}
+          </Badge>
+          <span className="ml-auto shrink-0 text-[11px] text-muted-foreground">{formatDate(trade.tradeDate)}</span>
         </div>
-        <div className="mt-2 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Badge
-              variant="outline"
-              className={trade.position === 'BUY'
-                ? 'border-red-300 bg-red-50 text-red-700'
-                : 'border-blue-300 bg-blue-50 text-blue-700'}
-            >
-              {trade.position === 'BUY' ? '매수' : '매도'}
-            </Badge>
-            <span className="font-mono font-semibold">{trade.ticker}</span>
-          </div>
-          <div className="text-right">
-            <div className="text-sm">${trade.entryPrice.toLocaleString('en-US', { minimumFractionDigits: 2 })}</div>
-            {trade.profit != null && (
-              <div className={`text-sm font-semibold ${trade.profit > 0 ? 'text-red-600' : trade.profit < 0 ? 'text-blue-600' : 'text-muted-foreground'}`}>
-                {trade.profit > 0 ? '+' : ''}{trade.profit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </div>
-            )}
-          </div>
+
+        {/* Row 2: price · qty · profit */}
+        <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground pl-8">
+          <span>${trade.entryPrice.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+          <span>{trade.quantity}주</span>
+          {trade.profit != null && (
+            <span className={`font-semibold ${trade.profit > 0 ? 'text-red-600' : trade.profit < 0 ? 'text-blue-600' : 'text-muted-foreground'}`}>
+              {trade.profit > 0 ? '+' : ''}${trade.profit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </span>
+          )}
         </div>
+
+        {/* Row 3 (optional): reason */}
         {trade.reason && (
-          <p className="mt-2 line-clamp-2 text-sm text-muted-foreground">{trade.reason}</p>
+          <p className="mt-1 truncate text-xs text-muted-foreground pl-8">{trade.reason}</p>
         )}
+
+        {/* Row 4: actions */}
+        <div className="mt-1.5 flex items-center gap-3 text-[11px] text-muted-foreground pl-8">
+          <span className="flex items-center gap-0.5">
+            <ThumbsUp className="h-3 w-3" />
+            {trade.likeCount}
+          </span>
+          <span className="flex items-center gap-0.5">
+            <ThumbsDown className="h-3 w-3" />
+            {trade.dislikeCount}
+          </span>
+          <span className="flex items-center gap-0.5">
+            <MessageSquare className="h-3 w-3" />
+            {trade.commentCount}
+          </span>
+        </div>
       </div>
     )
   }

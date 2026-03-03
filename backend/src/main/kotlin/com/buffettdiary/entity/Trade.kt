@@ -38,6 +38,4 @@ class Trade(
 
     @Column(columnDefinition = "TEXT")
     var reason: String? = null,
-
-    var rating: Int? = null,
 ) : AuditEntity()

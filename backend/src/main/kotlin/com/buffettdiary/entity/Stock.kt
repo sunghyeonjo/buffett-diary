@@ -19,4 +19,13 @@ class Stock(
 
     @Column(name = "logo_url", length = 255)
     val logoUrl: String? = null,
+
+    @Column(length = 50)
+    val sector: String? = null,
+
+    @Column(length = 20)
+    val exchange: String? = null,
+
+    @Column(nullable = false)
+    val active: Boolean = true,
 )

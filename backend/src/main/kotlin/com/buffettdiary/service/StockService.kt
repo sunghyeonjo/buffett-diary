@@ -14,6 +14,6 @@ class StockService(
         if (query.isBlank()) return emptyList()
         return stockRepository.search(query.trim())
             .take(10)
-            .map { StockResponse(it.ticker, it.nameEn, it.nameKo, it.logoUrl) }
+            .map { StockResponse(it.ticker, it.nameEn, it.nameKo, it.logoUrl, it.sector, it.exchange) }
     }
 }

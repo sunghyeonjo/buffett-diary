@@ -17,4 +17,8 @@ interface StockRepository : JpaRepository<Stock, Long> {
           s.ticker
     """)
     fun search(query: String): List<Stock>
+
+    fun findByTickerIn(tickers: List<String>): List<Stock>
+
+    fun findByTicker(ticker: String): Stock?
 }

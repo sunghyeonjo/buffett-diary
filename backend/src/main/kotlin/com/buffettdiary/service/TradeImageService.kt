@@ -92,6 +92,14 @@ class TradeImageService(
     }
 
     @Transactional(readOnly = true)
+    fun getImageMetasByTradeIds(tradeIds: List<Long>): Map<Long, List<TradeImageResponse>> {
+        if (tradeIds.isEmpty()) return emptyMap()
+        return tradeImageRepository.findMetaByTradeIdIn(tradeIds)
+            .map { it.toResponse() }
+            .groupBy { it.tradeId }
+    }
+
+    @Transactional(readOnly = true)
     fun getImageMetas(tradeId: Long, userId: Long): List<TradeImageResponse> {
         return tradeImageRepository.findMetaByTradeIdAndUserId(tradeId, userId)
             .map { it.toResponse() }

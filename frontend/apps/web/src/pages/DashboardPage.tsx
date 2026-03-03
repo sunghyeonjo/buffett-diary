@@ -3,15 +3,16 @@ import { useQuery } from '@tanstack/react-query'
 import type { TradeStats } from '@buffett-diary/shared'
 import { tradesApi } from '@/api/trades'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { TabFilter } from '@/components/ui/tab-filter'
 
 type Period = 'today' | 'week' | 'month' | 'year' | 'all'
 
-const TABS: { label: string; period: Period }[] = [
-  { label: '오늘', period: 'today' },
-  { label: '이번 주', period: 'week' },
-  { label: '이번 달', period: 'month' },
-  { label: '올해', period: 'year' },
-  { label: '전체', period: 'all' },
+const PERIOD_OPTIONS: { value: Period; label: string }[] = [
+  { value: 'today', label: '오늘' },
+  { value: 'week', label: '이번 주' },
+  { value: 'month', label: '이번 달' },
+  { value: 'year', label: '올해' },
+  { value: 'all', label: '전체' },
 ]
 
 function StatCard({ title, value, sub }: { title: string; value: string | number; sub?: string }) {
@@ -92,21 +93,7 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">대시보드</h1>
-      <div className="flex gap-1 rounded-lg border bg-muted p-1">
-        {TABS.map((tab) => (
-          <button
-            key={tab.period}
-            onClick={() => setActivePeriod(tab.period)}
-            className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-              activePeriod === tab.period
-                ? 'bg-background text-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      <TabFilter options={PERIOD_OPTIONS} value={activePeriod} onChange={setActivePeriod} />
       <StatsSection period={activePeriod} />
     </div>
   )

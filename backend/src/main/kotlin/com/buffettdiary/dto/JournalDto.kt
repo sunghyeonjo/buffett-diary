@@ -22,9 +22,13 @@ data class JournalResponse(
     val updatedAt: String,
     val images: List<JournalImageResponse> = emptyList(),
     val author: AuthorSummary? = null,
+    val likeCount: Long = 0,
+    val dislikeCount: Long = 0,
+    val myLike: Boolean? = null,
+    val commentCount: Long = 0,
 ) : Serializable {
     companion object {
-        private const val serialVersionUID = 1L
+        private const val serialVersionUID = 2L
     }
 }
 
@@ -55,3 +59,22 @@ data class AuthorSummary(
         private const val serialVersionUID = 1L
     }
 }
+
+data class JournalCommentRequest(
+    @field:Size(max = 1000) val content: String,
+)
+
+data class JournalLikeRequest(
+    val liked: Boolean? = null,
+)
+
+data class JournalCommentResponse(
+    val id: Long,
+    val journalId: Long,
+    val userId: Long,
+    val nickname: String,
+    val parentId: Long?,
+    val content: String,
+    val createdAt: String,
+    val updatedAt: String,
+)

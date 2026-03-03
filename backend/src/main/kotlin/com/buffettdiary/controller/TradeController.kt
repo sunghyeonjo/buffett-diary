@@ -101,14 +101,14 @@ class TradeController(
         return ResponseEntity.noContent().build()
     }
 
-    // --- Rating endpoint ---
+    // --- Like endpoint ---
 
-    @PutMapping("/{id}/rating")
-    fun updateRating(
+    @PutMapping("/{id}/like")
+    fun updateLike(
         auth: Authentication,
         @PathVariable id: Long,
-        @Valid @RequestBody request: TradeRatingRequest,
+        @Valid @RequestBody request: TradeLikeRequest,
     ): ResponseEntity<TradeResponse> {
-        return ResponseEntity.ok(tradeService.updateRating(userId(auth), id, request))
+        return ResponseEntity.ok(tradeService.updateLike(userId(auth), id, request))
     }
 }

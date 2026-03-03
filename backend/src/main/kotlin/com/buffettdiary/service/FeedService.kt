@@ -1,8 +1,12 @@
 package com.buffettdiary.service
 
 import com.buffettdiary.dto.*
+import com.buffettdiary.repository.JournalCommentRepository
+import com.buffettdiary.repository.JournalRatingRepository
 import com.buffettdiary.repository.JournalRepository
+import com.buffettdiary.repository.StockRepository
 import com.buffettdiary.repository.TradeCommentRepository
+import com.buffettdiary.repository.TradeRatingRepository
 import com.buffettdiary.repository.TradeRepository
 import com.buffettdiary.repository.UserRepository
 import org.springframework.data.domain.PageRequest
@@ -18,15 +22,20 @@ class FeedService(
     private val journalImageService: JournalImageService,
     private val tradeImageService: TradeImageService,
     private val tradeCommentRepository: TradeCommentRepository,
+    private val tradeRatingRepository: TradeRatingRepository,
+    private val journalCommentRepository: JournalCommentRepository,
+    private val journalRatingRepository: JournalRatingRepository,
+    private val stockRepository: StockRepository,
 ) {
     @Transactional(readOnly = true)
     fun feed(userId: Long, page: Int, size: Int): PageResponse<FeedItem> {
+        val effectiveSize = if (size <= 0) 20 else size
         val followingIds = followService.findFollowingIds(userId)
         if (followingIds.isEmpty()) {
-            return PageResponse(emptyList(), 0, 0, page, size)
+            return PageResponse(emptyList(), 0, 0, page, effectiveSize)
         }
 
-        val fetchSize = size * 2
+        val fetchSize = effectiveSize * 2
         val pageable = PageRequest.of(0, fetchSize)
 
         val journals = journalRepository.findByUserIdInOrderByCreatedAtDesc(followingIds, pageable).content
@@ -35,22 +44,27 @@ class FeedService(
         val userIds = (journals.map { it.userId } + trades.map { it.userId }).toSet()
         val users = userRepository.findAllById(userIds).associateBy { it.id }
 
-        // Build journal image metas grouped by journal
         val journalIds = journals.map { it.id }
-        val journalImagesMap = if (journalIds.isNotEmpty()) {
-            // For feed, load images for all journals from all followed users
-            journalIds.associateWith { jId ->
-                val journal = journals.first { it.id == jId }
-                journalImageService.getImageMetas(jId, journal.userId)
-            }
-        } else emptyMap()
-
         val tradeIds = trades.map { it.id }
-        val tradeImagesMap = if (tradeIds.isNotEmpty()) {
-            tradeIds.associateWith { tId ->
-                val trade = trades.first { it.id == tId }
-                tradeImageService.getImageMetas(tId, trade.userId)
-            }
+
+        // Batch queries — 1 query each instead of N
+        val journalImagesMap = journalImageService.getImageMetasByJournalIds(journalIds)
+        val tradeImagesMap = tradeImageService.getImageMetasByTradeIds(tradeIds)
+        val journalLikeStats = if (journalIds.isNotEmpty()) {
+            journalRatingRepository.findLikeCountsByJournalIds(journalIds).associateBy { it.journalId }
+        } else emptyMap()
+        val tradeLikeStats = if (tradeIds.isNotEmpty()) {
+            tradeRatingRepository.findLikeCountsByTradeIds(tradeIds).associateBy { it.tradeId }
+        } else emptyMap()
+        val journalCommentCounts = if (journalIds.isNotEmpty()) {
+            journalCommentRepository.countByJournalIdIn(journalIds).associate { it.entityId to it.count }
+        } else emptyMap()
+        val tradeCommentCounts = if (tradeIds.isNotEmpty()) {
+            tradeCommentRepository.countByTradeIdIn(tradeIds).associate { it.entityId to it.count }
+        } else emptyMap()
+        val stockMap = if (trades.isNotEmpty()) {
+            val tickers = trades.map { it.ticker }.distinct()
+            stockRepository.findByTickerIn(tickers).associateBy { it.ticker }
         } else emptyMap()
 
         val items = mutableListOf<FeedItem>()
@@ -69,6 +83,10 @@ class FeedService(
                     updatedAt = journal.updatedAt.toString(),
                     images = journalImagesMap[journal.id] ?: emptyList(),
                     author = AuthorSummary(user.id, user.nickname),
+                    likeCount = journalLikeStats[journal.id]?.likeCount ?: 0,
+                    dislikeCount = journalLikeStats[journal.id]?.dislikeCount ?: 0,
+                    myLike = null,
+                    commentCount = journalCommentCounts[journal.id] ?: 0,
                 ),
                 trade = null,
                 author = AuthorSummary(user.id, user.nickname),
@@ -92,8 +110,11 @@ class FeedService(
                     exitPrice = trade.exitPrice,
                     profit = trade.profit,
                     reason = trade.reason,
-                    rating = trade.rating,
-                    commentCount = tradeCommentRepository.countByTradeId(trade.id),
+                    likeCount = tradeLikeStats[trade.id]?.likeCount ?: 0,
+                    dislikeCount = tradeLikeStats[trade.id]?.dislikeCount ?: 0,
+                    myLike = null,
+                    commentCount = tradeCommentCounts[trade.id] ?: 0,
+                    stockInfo = stockMap[trade.ticker]?.let { s -> StockSummary(s.nameKo, s.logoUrl) },
                     createdAt = trade.createdAt.toString(),
                     updatedAt = trade.updatedAt.toString(),
                     images = tradeImagesMap[trade.id] ?: emptyList(),
@@ -105,11 +126,11 @@ class FeedService(
 
         items.sortByDescending { it.createdAt }
 
-        val start = page * size
-        val paged = items.drop(start).take(size)
+        val start = page * effectiveSize
+        val paged = items.drop(start).take(effectiveSize)
         val totalElements = items.size.toLong()
-        val totalPages = if (items.isEmpty()) 0 else (items.size + size - 1) / size
+        val totalPages = if (items.isEmpty()) 0 else (items.size + effectiveSize - 1) / effectiveSize
 
-        return PageResponse(paged, totalElements, totalPages, page, size)
+        return PageResponse(paged, totalElements, totalPages, page, effectiveSize)
     }
 }

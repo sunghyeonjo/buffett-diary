@@ -11,7 +11,7 @@ import { formatDate } from '@/lib/date'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { TickerLogo } from '@/components/StockLogo'
-import { ImageIcon, Settings, Grid3x3, BookOpen, X, LogOut, ChevronLeft, ChevronRight, Star } from 'lucide-react'
+import { ImageIcon, Settings, Grid3x3, BookOpen, X, LogOut, ChevronLeft, ChevronRight, ThumbsUp, ThumbsDown } from 'lucide-react'
 import EditProfileModal from '@/components/EditProfileModal'
 import TradeCommentSection from '@/components/TradeCommentSection'
 
@@ -365,7 +365,7 @@ function TradeCardList({ trades, onSelect }: { trades: Trade[]; onSelect: (t: Tr
           className="flex w-full items-center gap-3 overflow-hidden px-1 py-3 text-left transition-colors hover:bg-muted/30"
           onClick={() => onSelect(trade)}
         >
-          <TickerLogo ticker={trade.ticker} className="h-10 w-10 shrink-0" />
+          <TickerLogo ticker={trade.ticker} stockInfo={trade.stockInfo} className="h-10 w-10 shrink-0" />
           <div className="min-w-0 flex-1 overflow-hidden">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-1.5 shrink-0">
@@ -439,7 +439,7 @@ function TradeDetailModal({ trade, onClose }: { trade: Trade; onClose: () => voi
           {/* Header */}
           <div className="flex items-center justify-between border-b px-4 py-3 shrink-0">
             <div className="flex items-center gap-2.5 min-w-0">
-              <TickerLogo ticker={trade.ticker} className="h-8 w-8 shrink-0" />
+              <TickerLogo ticker={trade.ticker} stockInfo={trade.stockInfo} className="h-8 w-8 shrink-0" />
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5">
                   <h2 className="text-sm font-semibold">{trade.ticker}</h2>
@@ -529,16 +529,18 @@ function TradeDetailModal({ trade, onClose }: { trade: Trade; onClose: () => voi
                     <p className="font-medium tabular-nums">${trade.exitPrice.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
                   </div>
                 )}
-                {trade.rating != null && (
+                {(trade.likeCount > 0 || trade.dislikeCount > 0) && (
                   <div>
                     <p className="text-xs text-muted-foreground">평가</p>
-                    <div className="flex gap-0.5 mt-0.5">
-                      {[1, 2, 3, 4, 5].map((v) => (
-                        <Star
-                          key={v}
-                          className={`h-3.5 w-3.5 ${v <= trade.rating! ? 'fill-yellow-400 text-yellow-400' : 'text-muted-foreground/30'}`}
-                        />
-                      ))}
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="flex items-center gap-0.5 text-sm text-red-500">
+                        <ThumbsUp className="h-3.5 w-3.5" />
+                        {trade.likeCount}
+                      </span>
+                      <span className="flex items-center gap-0.5 text-sm text-blue-500">
+                        <ThumbsDown className="h-3.5 w-3.5" />
+                        {trade.dislikeCount}
+                      </span>
                     </div>
                   </div>
                 )}

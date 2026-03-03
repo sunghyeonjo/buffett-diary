@@ -1,4 +1,4 @@
-import type { Journal, JournalRequest, JournalFilter, JournalImageMeta, PageResponse } from '@buffett-diary/shared'
+import type { Journal, JournalRequest, JournalFilter, JournalImageMeta, JournalComment, JournalCommentRequest, JournalLikeRequest, PageResponse } from '@buffett-diary/shared'
 import client from './client'
 
 export const journalsApi = {
@@ -16,6 +16,30 @@ export const journalsApi = {
   },
   delete(id: number) {
     return client.delete(`/journals/${id}`)
+  },
+}
+
+export const journalLikeApi = {
+  update(journalId: number, data: JournalLikeRequest) {
+    return client.put<Journal>(`/journals/${journalId}/like`, data)
+  },
+}
+
+export const journalCommentsApi = {
+  list(journalId: number) {
+    return client.get<JournalComment[]>(`/journals/${journalId}/comments`)
+  },
+  create(journalId: number, data: JournalCommentRequest) {
+    return client.post<JournalComment>(`/journals/${journalId}/comments`, data)
+  },
+  reply(journalId: number, commentId: number, data: JournalCommentRequest) {
+    return client.post<JournalComment>(`/journals/${journalId}/comments/${commentId}/replies`, data)
+  },
+  update(journalId: number, commentId: number, data: JournalCommentRequest) {
+    return client.put<JournalComment>(`/journals/${journalId}/comments/${commentId}`, data)
+  },
+  delete(journalId: number, commentId: number) {
+    return client.delete(`/journals/${journalId}/comments/${commentId}`)
   },
 }
 

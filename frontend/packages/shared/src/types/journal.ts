@@ -22,6 +22,10 @@ export interface Journal {
   updatedAt: string
   images: JournalImageMeta[]
   author?: AuthorSummary
+  likeCount: number
+  dislikeCount: number
+  myLike: boolean | null
+  commentCount: number
 }
 
 export interface JournalRequest {
@@ -35,4 +39,23 @@ export interface JournalFilter {
   endDate?: string
   page?: number
   size?: number
+}
+
+export interface JournalComment {
+  id: number
+  journalId: number
+  userId: number
+  nickname: string
+  parentId: number | null
+  content: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface JournalCommentRequest {
+  content: string
+}
+
+export interface JournalLikeRequest {
+  liked: boolean | null
 }

@@ -3,11 +3,13 @@ package com.buffettdiary.service
 import com.buffettdiary.dto.*
 import com.buffettdiary.entity.Trade
 import com.buffettdiary.enums.Position
-import com.buffettdiary.exception.BadRequestException
 import com.buffettdiary.exception.ForbiddenException
 import com.buffettdiary.exception.NotFoundException
+import com.buffettdiary.repository.StockRepository
 import com.buffettdiary.repository.TradeCommentRepository
+import com.buffettdiary.repository.TradeRatingRepository
 import com.buffettdiary.repository.TradeRepository
+import com.buffettdiary.entity.TradeRating
 import org.springframework.cache.annotation.CacheEvict
 import org.springframework.cache.annotation.Cacheable
 import org.springframework.data.domain.PageRequest
@@ -23,6 +25,8 @@ class TradeService(
     private val tradeRepository: TradeRepository,
     private val tradeImageService: TradeImageService,
     private val tradeCommentRepository: TradeCommentRepository,
+    private val tradeRatingRepository: TradeRatingRepository,
+    private val stockRepository: StockRepository,
 ) {
     @Transactional(readOnly = true)
     @Cacheable(value = ["trades"], key = "#userId + '-' + #startDate + '-' + #endDate + '-' + #ticker + '-' + #position + '-' + #page + '-' + #size")
@@ -40,9 +44,28 @@ class TradeService(
         val tradeIds = trades.map { it.id }
         val imagesMap = tradeImageService.getImageMetasByTradeIds(tradeIds, userId)
         val commentCounts = tradeIds.associateWith { tradeCommentRepository.countByTradeId(it) }
+        val likeStats = if (tradeIds.isNotEmpty()) {
+            tradeRatingRepository.findLikeCountsByTradeIds(tradeIds).associateBy { it.tradeId }
+        } else emptyMap()
+        val myLikes = if (tradeIds.isNotEmpty()) {
+            tradeRatingRepository.findByTradeIdInAndUserId(tradeIds, userId).associateBy { it.tradeId }
+        } else emptyMap()
+        val stockMap = if (trades.isNotEmpty()) {
+            val tickers = trades.map { it.ticker }.distinct()
+            stockRepository.findByTickerIn(tickers).associateBy { it.ticker }
+        } else emptyMap()
 
         return PageResponse(
-            content = trades.map { it.toResponse(imagesMap[it.id] ?: emptyList(), commentCounts[it.id] ?: 0) },
+            content = trades.map {
+                it.toResponse(
+                    images = imagesMap[it.id] ?: emptyList(),
+                    commentCount = commentCounts[it.id] ?: 0,
+                    likeCount = likeStats[it.id]?.likeCount ?: 0,
+                    dislikeCount = likeStats[it.id]?.dislikeCount ?: 0,
+                    myLike = myLikes[it.id]?.liked,
+                    stockInfo = stockMap[it.ticker]?.let { s -> StockSummary(s.nameKo, s.logoUrl) },
+                )
+            },
             totalElements = result.totalElements,
             totalPages = result.totalPages,
             page = page,
@@ -58,7 +81,11 @@ class TradeService(
         if (trade.userId != userId) throw ForbiddenException("Not authorized")
         val images = tradeImageService.getImageMetas(id, userId)
         val commentCount = tradeCommentRepository.countByTradeId(id)
-        return trade.toResponse(images, commentCount)
+        val likeCount = tradeRatingRepository.countByTradeIdAndLiked(id, true)
+        val dislikeCount = tradeRatingRepository.countByTradeIdAndLiked(id, false)
+        val myLike = tradeRatingRepository.findByTradeIdAndUserId(id, userId)?.liked
+        val stockInfo = stockRepository.findByTicker(trade.ticker)?.let { StockSummary(it.nameKo, it.logoUrl) }
+        return trade.toResponse(images, commentCount, likeCount, dislikeCount, myLike, stockInfo)
     }
 
     @Transactional
@@ -100,6 +127,7 @@ class TradeService(
         if (trade.userId != userId) throw ForbiddenException("Not authorized")
         tradeImageService.deleteByTradeId(id)
         tradeCommentRepository.deleteByTradeId(id)
+        tradeRatingRepository.deleteByTradeId(id)
         tradeRepository.delete(trade)
     }
 
@@ -150,14 +178,27 @@ class TradeService(
 
     @Transactional
     @CacheEvict(value = ["trades", "tradeDetail"], allEntries = true)
-    fun updateRating(userId: Long, id: Long, request: TradeRatingRequest): TradeResponse {
+    fun updateLike(userId: Long, id: Long, request: TradeLikeRequest): TradeResponse {
         val trade = tradeRepository.findById(id)
             .orElseThrow { NotFoundException("Trade not found") }
-        if (trade.userId != userId) throw ForbiddenException("Not authorized")
-        if (request.rating != null && request.rating !in 1..5) throw BadRequestException("Rating must be 1-5")
-        trade.rating = request.rating
+
+        val existing = tradeRatingRepository.findByTradeIdAndUserId(id, userId)
+        if (request.liked == null) {
+            if (existing != null) tradeRatingRepository.delete(existing)
+        } else {
+            if (existing != null) {
+                existing.liked = request.liked
+                tradeRatingRepository.save(existing)
+            } else {
+                tradeRatingRepository.save(TradeRating(tradeId = id, userId = userId, liked = request.liked))
+            }
+        }
+
         val commentCount = tradeCommentRepository.countByTradeId(id)
-        return tradeRepository.save(trade).toResponse(commentCount = commentCount)
+        val likeCount = tradeRatingRepository.countByTradeIdAndLiked(id, true)
+        val dislikeCount = tradeRatingRepository.countByTradeIdAndLiked(id, false)
+        val stockInfo = stockRepository.findByTicker(trade.ticker)?.let { StockSummary(it.nameKo, it.logoUrl) }
+        return trade.toResponse(commentCount = commentCount, likeCount = likeCount, dislikeCount = dislikeCount, myLike = request.liked, stockInfo = stockInfo)
     }
 
     private fun buildTrade(userId: Long, request: TradeRequest): Trade {
@@ -174,7 +215,14 @@ class TradeService(
         )
     }
 
-    private fun Trade.toResponse(images: List<TradeImageResponse> = emptyList(), commentCount: Long = 0) = TradeResponse(
+    private fun Trade.toResponse(
+        images: List<TradeImageResponse> = emptyList(),
+        commentCount: Long = 0,
+        likeCount: Long = 0,
+        dislikeCount: Long = 0,
+        myLike: Boolean? = null,
+        stockInfo: StockSummary? = null,
+    ) = TradeResponse(
         id = id,
         userId = userId,
         tradeDate = tradeDate.toString(),
@@ -185,9 +233,12 @@ class TradeService(
         exitPrice = exitPrice,
         profit = profit,
         reason = reason,
-        rating = rating,
+        likeCount = likeCount,
+        dislikeCount = dislikeCount,
+        myLike = myLike,
         commentCount = commentCount,
         createdAt = createdAt.toString(),
+        stockInfo = stockInfo,
         updatedAt = updatedAt.toString(),
         images = images,
     )

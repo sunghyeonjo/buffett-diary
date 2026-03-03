@@ -1,26 +1,13 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import {
-  useReactTable,
-  getCoreRowModel,
-  flexRender,
-  createColumnHelper,
-} from '@tanstack/react-table'
 import type { Trade, TradeFilter } from '@buffett-diary/shared'
 import dayjs from 'dayjs'
-import { tradesApi, tradeImagesApi, tradeRatingApi } from '@/api/trades'
-import { formatDate, toDateString } from '@/lib/date'
+import { tradesApi, tradeImagesApi, tradeLikeApi } from '@/api/trades'
+import { formatDate } from '@/lib/date'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
-import { Plus, Pencil, Trash2, ImageIcon, X, Download, ChevronLeft, ChevronRight, List, MessageSquare } from 'lucide-react'
+import { Plus, Pencil, Trash2, ImageIcon, X, Download, ChevronLeft, ChevronRight, List, MessageSquare, ThumbsUp, ThumbsDown } from 'lucide-react'
+import { TabFilter } from '@/components/ui/tab-filter'
 import { TickerCombobox } from '@/components/TickerCombobox'
 import TradeFormModal from '@/components/TradeFormModal'
 import BulkTradeModal from '@/components/BulkTradeModal'
@@ -28,23 +15,11 @@ import TradeForm from '@/components/TradeForm'
 import TradeCommentSection from '@/components/TradeCommentSection'
 import { TickerLogo } from '@/components/StockLogo'
 
-const columnHelper = createColumnHelper<Trade>()
+const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토']
 
-const periodToDates = (p: string): { startDate?: string; endDate?: string } => {
-  if (!p) return { startDate: undefined, endDate: undefined }
-  const today = dayjs()
-  const end = toDateString(today)
-  if (p === 'today') return { startDate: end, endDate: end }
-  if (p === 'week') return { startDate: toDateString(today.startOf('week').add(1, 'day')), endDate: end }
-  if (p === 'month') return { startDate: toDateString(today.startOf('month')), endDate: end }
-  return { startDate: undefined, endDate: undefined }
-}
-
-const INITIAL_PERIOD = 'today'
 const INITIAL_FILTER: TradeFilter = {
   page: 0,
   size: 20,
-  ...periodToDates(INITIAL_PERIOD),
 }
 
 // --- Image Viewer ---
@@ -131,36 +106,18 @@ function ImageViewer({
 
 // --- Detail Side Panel ---
 
-const RATING_LABELS = ['최악', '나쁨', '보통', '좋음', '훌륭함'] as const
-const RATING_COLORS = [
-  'border-red-300 bg-red-50 text-red-700',
-  'border-orange-300 bg-orange-50 text-orange-700',
-  'border-gray-300 bg-gray-50 text-gray-700',
-  'border-blue-300 bg-blue-50 text-blue-700',
-  'border-green-300 bg-green-50 text-green-700',
-] as const
-
 function TradeDetailPanel({ trade, onClose, onSaved, onTradeUpdated }: { trade: Trade; onClose: () => void; onSaved: () => void; onTradeUpdated: (t: Trade) => void }) {
   const queryClient = useQueryClient()
   const [imageUrls, setImageUrls] = useState<Map<number, string>>(new Map())
   const [viewerIndex, setViewerIndex] = useState<number | null>(null)
   const [editing, setEditing] = useState(false)
   const [selectedImageIndex, setSelectedImageIndex] = useState(0)
-  const [ratingEditing, setRatingEditing] = useState(false)
-  const [ratingValue, setRatingValue] = useState<number | null>(trade.rating)
 
-  useEffect(() => {
-    if (!ratingEditing) {
-      setRatingValue(trade.rating)
-    }
-  }, [trade.rating]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const ratingMutation = useMutation({
-    mutationFn: () => tradeRatingApi.update(trade.id, { rating: ratingValue }),
+  const likeMutation = useMutation({
+    mutationFn: (liked: boolean | null) => tradeLikeApi.update(trade.id, { liked }),
     onSuccess: ({ data: updated }) => {
       queryClient.invalidateQueries({ queryKey: ['trades'] })
       onTradeUpdated(updated)
-      setRatingEditing(false)
     },
   })
 
@@ -201,6 +158,10 @@ function TradeDetailPanel({ trade, onClose, onSaved, onTradeUpdated }: { trade: 
     return <span className="text-muted-foreground">$0.00</span>
   }
 
+  const handleLike = (liked: boolean) => {
+    likeMutation.mutate(trade.myLike === liked ? null : liked)
+  }
+
   return (
     <>
       {/* Backdrop */}
@@ -211,7 +172,7 @@ function TradeDetailPanel({ trade, onClose, onSaved, onTradeUpdated }: { trade: 
         {/* Header */}
         <div className="flex items-center justify-between border-b px-5 py-4">
           <div className="flex items-center gap-3">
-            <TickerLogo ticker={trade.ticker} className="h-8 w-8" />
+            <TickerLogo ticker={trade.ticker} stockInfo={trade.stockInfo} className="h-8 w-8" />
             <div>
               <h2 className="text-lg font-semibold font-mono">{trade.ticker}</h2>
               <p className="text-sm text-muted-foreground">{formatDate(trade.tradeDate)}</p>
@@ -334,56 +295,35 @@ function TradeDetailPanel({ trade, onClose, onSaved, onTradeUpdated }: { trade: 
                 )
               })()}
 
-              {/* Rating (매매 평가) */}
+              {/* Like / Dislike */}
               <div>
-                <div className="mb-2 flex items-center justify-between">
-                  <h3 className="text-sm font-medium text-muted-foreground">매매 평가</h3>
-                  {!ratingEditing && trade.rating != null && (
-                    <button
-                      className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-                      onClick={() => { setRatingValue(trade.rating); setRatingEditing(true) }}
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </button>
-                  )}
-                </div>
-
-                {ratingEditing ? (
-                  <div className="space-y-3 rounded-lg border bg-muted/30 p-3">
-                    <div className="flex gap-1">
-                      {RATING_LABELS.map((label, i) => {
-                        const value = i + 1
-                        const selected = ratingValue === value
-                        return (
-                          <button
-                            key={value}
-                            onClick={() => setRatingValue(selected ? null : value)}
-                            className={`rounded-md border px-2 py-1 text-xs font-medium transition-colors ${
-                              selected ? RATING_COLORS[i] : 'border-transparent text-muted-foreground hover:bg-muted'
-                            }`}
-                          >
-                            {label}
-                          </button>
-                        )
-                      })}
-                    </div>
-                    <div className="flex justify-end gap-2">
-                      <Button size="sm" variant="ghost" onClick={() => { setRatingEditing(false); setRatingValue(trade.rating) }}>취소</Button>
-                      <Button size="sm" disabled={ratingMutation.isPending} onClick={() => ratingMutation.mutate()}>저장</Button>
-                    </div>
-                  </div>
-                ) : trade.rating != null ? (
-                  <Badge variant="outline" className={RATING_COLORS[trade.rating - 1]}>
-                    {RATING_LABELS[trade.rating - 1]}
-                  </Badge>
-                ) : (
+                <h3 className="mb-2 text-sm font-medium text-muted-foreground">매매 평가</h3>
+                <div className="flex items-center gap-3">
                   <button
-                    onClick={() => setRatingEditing(true)}
-                    className="w-full rounded-lg border border-dashed p-3 text-center text-sm text-muted-foreground transition-colors hover:border-primary/30 hover:bg-muted/30 hover:text-foreground"
+                    type="button"
+                    className={`flex items-center gap-1 rounded-full border px-3 py-1.5 text-sm transition-colors ${
+                      trade.myLike === true
+                        ? 'border-red-300 bg-red-50 text-red-600'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                    onClick={() => handleLike(true)}
                   >
-                    매매 평가를 남겨보세요
+                    <ThumbsUp className="h-4 w-4" />
+                    <span className="tabular-nums">{trade.likeCount}</span>
                   </button>
-                )}
+                  <button
+                    type="button"
+                    className={`flex items-center gap-1 rounded-full border px-3 py-1.5 text-sm transition-colors ${
+                      trade.myLike === false
+                        ? 'border-blue-300 bg-blue-50 text-blue-600'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                    onClick={() => handleLike(false)}
+                  >
+                    <ThumbsDown className="h-4 w-4" />
+                    <span className="tabular-nums">{trade.dislikeCount}</span>
+                  </button>
+                </div>
               </div>
 
               {/* Comments */}
@@ -425,6 +365,13 @@ function TradeDetailPanel({ trade, onClose, onSaved, onTradeUpdated }: { trade: 
 
 // --- Main Page ---
 
+interface DateGroup {
+  date: string
+  label: string
+  trades: Trade[]
+  dayProfit: number | null
+}
+
 export default function TradeListPage() {
   const queryClient = useQueryClient()
   const [filter, setFilter] = useState<TradeFilter>(INITIAL_FILTER)
@@ -432,7 +379,6 @@ export default function TradeListPage() {
   const [formTradeId, setFormTradeId] = useState<number | 'new' | null>(null)
   const [bulkOpen, setBulkOpen] = useState(false)
 
-  const [period, setPeriod] = useState('today')
   const [ticker, setTicker] = useState('')
   const [position, setPosition] = useState('')
 
@@ -441,13 +387,12 @@ export default function TradeListPage() {
   }
 
   const resetFilters = () => {
-    setPeriod('')
     setTicker('')
     setPosition('')
     setFilter(INITIAL_FILTER)
   }
 
-  const hasActiveFilters = period || ticker || position
+  const hasActiveFilters = ticker || position
 
   const { data, isLoading } = useQuery({
     queryKey: ['trades', filter],
@@ -463,127 +408,35 @@ export default function TradeListPage() {
     },
   })
 
-  const columns = [
-    columnHelper.accessor('tradeDate', {
-      header: '날짜',
-      cell: (info) => <span className="text-muted-foreground whitespace-nowrap">{formatDate(info.getValue())}</span>,
-    }),
-    columnHelper.accessor('ticker', {
-      header: '종목',
-      cell: (info) => (
-        <span className="flex items-center gap-1.5 whitespace-nowrap">
-          <TickerLogo ticker={info.getValue()} className="h-5 w-5 shrink-0" />
-          <span className="font-mono font-semibold">{info.getValue()}</span>
-        </span>
-      ),
-    }),
-    columnHelper.accessor('position', {
-      header: '구분',
-      cell: (info) => (
-        <Badge
-          variant="outline"
-          className={info.getValue() === 'BUY'
-            ? 'border-red-300 bg-red-50 text-red-700'
-            : 'border-blue-300 bg-blue-50 text-blue-700'}
-        >
-          {info.getValue() === 'BUY' ? '매수' : '매도'}
-        </Badge>
-      ),
-    }),
-    columnHelper.accessor('quantity', {
-      header: () => <span className="block text-right">수량</span>,
-      cell: (info) => {
-        const v = info.getValue()
-        return (
-          <span className="block text-right tabular-nums whitespace-nowrap">
-            {Number.isInteger(v) ? v : v.toFixed(6).replace(/\.?0+$/, '')}
-          </span>
-        )
-      },
-    }),
-    columnHelper.accessor('entryPrice', {
-      header: () => <span className="block text-right">단가($)</span>,
-      cell: (info) => (
-        <span className="block text-right tabular-nums whitespace-nowrap">
-          ${info.getValue().toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-        </span>
-      ),
-    }),
-    columnHelper.accessor('profit', {
-      header: () => <span className="block text-right">손익($)</span>,
-      cell: (info) => {
-        const v = info.getValue()
-        if (v == null) return <span className="block text-right text-muted-foreground">-</span>
-        const formatted = Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-        if (v > 0) return <span className="block text-right tabular-nums font-semibold text-red-600 whitespace-nowrap">+${formatted}</span>
-        if (v < 0) return <span className="block text-right tabular-nums font-semibold text-blue-600 whitespace-nowrap">-${formatted}</span>
-        return <span className="block text-right text-muted-foreground whitespace-nowrap">$0.00</span>
-      },
-    }),
-    columnHelper.accessor('rating', {
-      header: '평가',
-      cell: (info) => {
-        const rating = info.getValue()
-        const commentCount = info.row.original.commentCount
-        if (rating == null && !commentCount) return <span className="text-muted-foreground">-</span>
-        return (
-          <span className="flex items-center gap-1.5 whitespace-nowrap">
-            {rating != null && (
-              <Badge variant="outline" className={`text-xs ${RATING_COLORS[rating - 1]}`}>
-                {RATING_LABELS[rating - 1]}
-              </Badge>
-            )}
-            {commentCount > 0 && (
-              <span className="flex items-center gap-0.5 text-xs text-muted-foreground">
-                <MessageSquare className="h-3 w-3" />
-                {commentCount}
-              </span>
-            )}
-          </span>
-        )
-      },
-    }),
-    columnHelper.accessor('reason', {
-      header: '메모',
-      size: 200,
-      cell: (info) => {
-        const v = info.getValue()
-        const images = info.row.original.images
-        const hasImages = images && images.length > 0
-        if (!v && !hasImages) return <span className="text-muted-foreground">-</span>
-        return (
-          <span className="flex items-center gap-1.5 max-w-[200px]">
-            {hasImages && <ImageIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
-            {v ? <span className="truncate">{v}</span> : null}
-          </span>
-        )
-      },
-    }),
-    columnHelper.display({
-      id: 'actions',
-      cell: ({ row }) => (
-        <span className="flex justify-end">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            onClick={(e) => {
-              e.stopPropagation()
-              if (confirm('이 매매를 삭제하시겠습니까?')) deleteMutation.mutate(row.original.id)
-            }}
-          >
-            <Trash2 className="h-3.5 w-3.5 text-destructive" />
-          </Button>
-        </span>
-      ),
-    }),
-  ]
+  const dateGroups = useMemo<DateGroup[]>(() => {
+    const trades = data?.content ?? []
+    const groupMap = new Map<string, Trade[]>()
+    for (const t of trades) {
+      const existing = groupMap.get(t.tradeDate)
+      if (existing) existing.push(t)
+      else groupMap.set(t.tradeDate, [t])
+    }
+    return Array.from(groupMap.entries()).map(([date, trades]) => {
+      const d = dayjs(date)
+      let dayProfit: number | null = null
+      for (const t of trades) {
+        if (t.profit != null) dayProfit = (dayProfit ?? 0) + t.profit
+      }
+      return {
+        date,
+        label: `${d.format('M월 D일')} ${WEEKDAYS[d.day()]}요일`,
+        trades,
+        dayProfit,
+      }
+    })
+  }, [data?.content])
 
-  const table = useReactTable({
-    data: data?.content ?? [],
-    columns,
-    getCoreRowModel: getCoreRowModel(),
-  })
+  const formatProfit = (v: number) => {
+    const formatted = Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    if (v > 0) return <span className="font-semibold tabular-nums text-red-600">+${formatted}</span>
+    if (v < 0) return <span className="font-semibold tabular-nums text-blue-600">-${formatted}</span>
+    return <span className="tabular-nums text-muted-foreground">$0.00</span>
+  }
 
   return (
     <div className="space-y-4">
@@ -603,42 +456,18 @@ export default function TradeListPage() {
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3">
-        <div className="flex gap-1 rounded-lg border bg-muted p-1">
-          {([['today', '오늘'], ['week', '이번 주'], ['month', '이번 달'], ['', '전체']] as const).map(([value, label]) => (
-            <button
-              key={value}
-              onClick={() => {
-                setPeriod(value)
-                updateFilter(periodToDates(value))
-              }}
-              className={`rounded-md px-2.5 py-1 text-sm font-medium transition-colors ${
-                period === value
-                  ? 'bg-background text-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-        <div className="flex gap-1 rounded-lg border bg-muted p-1">
-          {([['', '전체'], ['BUY', '매수'], ['SELL', '매도']] as const).map(([value, label]) => (
-            <button
-              key={value}
-              onClick={() => {
-                setPosition(value)
-                updateFilter({ position: value || undefined })
-              }}
-              className={`rounded-md px-2.5 py-1 text-sm font-medium transition-colors ${
-                position === value
-                  ? 'bg-background text-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+        <TabFilter
+          options={[
+            { value: '', label: '전체' },
+            { value: 'BUY', label: '매수' },
+            { value: 'SELL', label: '매도' },
+          ]}
+          value={position}
+          onChange={(v) => {
+            setPosition(v)
+            updateFilter({ position: (v || undefined) as TradeFilter['position'] })
+          }}
+        />
         <div className="w-40">
           <TickerCombobox
             value={ticker}
@@ -656,73 +485,137 @@ export default function TradeListPage() {
         )}
       </div>
 
+      {/* Timeline */}
       {isLoading ? (
         <div className="py-8 text-center text-muted-foreground">매매 내역을 불러오는 중...</div>
+      ) : dateGroups.length === 0 ? (
+        <div className="py-12 text-center text-muted-foreground">매매 내역이 없습니다</div>
       ) : (
-        <>
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                {table.getHeaderGroups().map((hg) => (
-                  <TableRow key={hg.id}>
-                    {hg.headers.map((h) => (
-                      <TableHead key={h.id} className="h-9 px-3 text-xs">
-                        {flexRender(h.column.columnDef.header, h.getContext())}
-                      </TableHead>
-                    ))}
-                  </TableRow>
-                ))}
-              </TableHeader>
-              <TableBody>
-                {table.getRowModel().rows.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={columns.length} className="text-center">
-                      매매 내역이 없습니다
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  table.getRowModel().rows.map((row) => (
-                    <TableRow
-                      key={row.id}
-                      className="cursor-pointer"
-                      onClick={() => setSelectedTrade(row.original)}
-                    >
-                      {row.getVisibleCells().map((cell) => (
-                        <TableCell key={cell.id} className="px-3 py-2">
-                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                        </TableCell>
-                      ))}
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
+        <div className="space-y-4">
+          {dateGroups.map((group) => (
+            <div key={group.date}>
+              {/* Date header */}
+              <div className="flex items-center justify-between py-1">
+                <span className="text-sm font-semibold text-muted-foreground">{group.label}</span>
+                <span className="text-xs text-muted-foreground">
+                  {group.trades.length}건
+                  {group.dayProfit != null && (
+                    <span className="ml-1.5">{formatProfit(group.dayProfit)}</span>
+                  )}
+                </span>
+              </div>
 
-          {data && data.totalPages > 1 && (
-            <div className="flex items-center justify-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={filter.page === 0}
-                onClick={() => setFilter((f) => ({ ...f, page: (f.page ?? 0) - 1 }))}
-              >
-                이전
-              </Button>
-              <span className="text-sm text-muted-foreground">
-                Page {(filter.page ?? 0) + 1} of {data.totalPages}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={(filter.page ?? 0) >= data.totalPages - 1}
-                onClick={() => setFilter((f) => ({ ...f, page: (f.page ?? 0) + 1 }))}
-              >
-                다음
-              </Button>
+              {/* Trades */}
+              <div className="divide-y rounded-xl border">
+                {group.trades.map((trade) => {
+                  const hasSocial = trade.likeCount > 0 || trade.dislikeCount > 0 || trade.commentCount > 0
+                  return (
+                    <div
+                      key={trade.id}
+                      className="cursor-pointer px-3 py-2.5 hover:bg-muted/50"
+                      onClick={() => setSelectedTrade(trade)}
+                    >
+                      {/* Row 1: ticker + position + price + profit */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <TickerLogo ticker={trade.ticker} stockInfo={trade.stockInfo} className="h-6 w-6" />
+                          <span className="font-mono text-sm font-semibold">{trade.ticker}</span>
+                          <Badge
+                            variant="outline"
+                            className={`text-[10px] ${trade.position === 'BUY'
+                              ? 'border-red-300 bg-red-50 text-red-700'
+                              : 'border-blue-300 bg-blue-50 text-blue-700'}`}
+                          >
+                            {trade.position === 'BUY' ? '매수' : '매도'}
+                          </Badge>
+                          <span className="text-xs text-muted-foreground tabular-nums">
+                            ${trade.entryPrice.toLocaleString('en-US', { minimumFractionDigits: 2 })} × {Number.isInteger(trade.quantity) ? trade.quantity : trade.quantity.toFixed(6).replace(/\.?0+$/, '')}주
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {trade.profit != null && formatProfit(trade.profit)}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 shrink-0"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              if (confirm('이 매매를 삭제하시겠습니까?')) deleteMutation.mutate(trade.id)
+                            }}
+                          >
+                            <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* Row 2: reason + images + social */}
+                      {(trade.reason || (trade.images && trade.images.length > 0) || hasSocial) && (
+                        <div className="mt-1 flex items-center gap-3 pl-8 text-[11px] text-muted-foreground">
+                          {trade.reason && (
+                            <span className="max-w-[200px] truncate">{trade.reason}</span>
+                          )}
+                          {trade.images && trade.images.length > 0 && (
+                            <span className="flex items-center gap-0.5">
+                              <ImageIcon className="h-3 w-3" />
+                              {trade.images.length}
+                            </span>
+                          )}
+                          {hasSocial && (
+                            <>
+                              {trade.likeCount > 0 && (
+                                <span className="flex items-center gap-0.5 text-red-500">
+                                  <ThumbsUp className="h-3 w-3" />
+                                  {trade.likeCount}
+                                </span>
+                              )}
+                              {trade.dislikeCount > 0 && (
+                                <span className="flex items-center gap-0.5 text-blue-500">
+                                  <ThumbsDown className="h-3 w-3" />
+                                  {trade.dislikeCount}
+                                </span>
+                              )}
+                              {trade.commentCount > 0 && (
+                                <span className="flex items-center gap-0.5">
+                                  <MessageSquare className="h-3 w-3" />
+                                  {trade.commentCount}
+                                </span>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
             </div>
-          )}
-        </>
+          ))}
+        </div>
+      )}
+
+      {/* Pagination */}
+      {data && data.totalPages > 1 && (
+        <div className="flex items-center justify-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={filter.page === 0}
+            onClick={() => setFilter((f) => ({ ...f, page: (f.page ?? 0) - 1 }))}
+          >
+            이전
+          </Button>
+          <span className="text-sm text-muted-foreground">
+            {(filter.page ?? 0) + 1} / {data.totalPages}
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={(filter.page ?? 0) >= data.totalPages - 1}
+            onClick={() => setFilter((f) => ({ ...f, page: (f.page ?? 0) + 1 }))}
+          >
+            다음
+          </Button>
+        </div>
       )}
 
       {/* Detail Side Panel */}

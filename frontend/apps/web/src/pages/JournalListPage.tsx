@@ -8,6 +8,7 @@ import { toDateString } from '@/lib/date'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Plus, Trash2, Pencil, ImageIcon, X, Download, ChevronLeft, ChevronRight } from 'lucide-react'
+import { TabFilter } from '@/components/ui/tab-filter'
 import JournalFormModal from '@/components/JournalFormModal'
 
 const INITIAL_FILTER: JournalFilter = { page: 0, size: 20 }
@@ -330,24 +331,19 @@ export default function JournalListPage() {
 
       {/* Date Filter */}
       <div className="flex flex-wrap items-center gap-3">
-        <div className="flex gap-1 rounded-lg border bg-muted p-1">
-          {([['', '전체'], ['today', '오늘'], ['week', '이번 주'], ['month', '이번 달']] as const).map(([value, label]) => (
-            <button
-              key={value}
-              onClick={() => {
-                setPeriod(value)
-                updateFilter(periodToDates(value))
-              }}
-              className={`rounded-md px-2.5 py-1 text-sm font-medium transition-colors ${
-                period === value
-                  ? 'bg-background text-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+        <TabFilter
+          options={[
+            { value: '', label: '전체' },
+            { value: 'today', label: '오늘' },
+            { value: 'week', label: '이번 주' },
+            { value: 'month', label: '이번 달' },
+          ]}
+          value={period}
+          onChange={(v) => {
+            setPeriod(v)
+            updateFilter(periodToDates(v))
+          }}
+        />
         {period && (
           <Button variant="ghost" size="sm" onClick={resetFilters}>
             필터 초기화

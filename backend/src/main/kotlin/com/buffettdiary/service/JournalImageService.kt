@@ -91,6 +91,14 @@ class JournalImageService(
     }
 
     @Transactional(readOnly = true)
+    fun getImageMetasByJournalIds(journalIds: List<Long>): Map<Long, List<JournalImageResponse>> {
+        if (journalIds.isEmpty()) return emptyMap()
+        return journalImageRepository.findMetaByJournalIdIn(journalIds)
+            .map { it.toResponse() }
+            .groupBy { it.journalId }
+    }
+
+    @Transactional(readOnly = true)
     fun getImageMetas(journalId: Long, userId: Long): List<JournalImageResponse> {
         return journalImageRepository.findMetaByJournalIdAndUserId(journalId, userId)
             .map { it.toResponse() }

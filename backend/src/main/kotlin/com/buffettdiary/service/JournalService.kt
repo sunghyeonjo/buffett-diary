@@ -2,8 +2,11 @@ package com.buffettdiary.service
 
 import com.buffettdiary.dto.*
 import com.buffettdiary.entity.Journal
+import com.buffettdiary.entity.JournalRating
 import com.buffettdiary.exception.ForbiddenException
 import com.buffettdiary.exception.NotFoundException
+import com.buffettdiary.repository.JournalCommentRepository
+import com.buffettdiary.repository.JournalRatingRepository
 import com.buffettdiary.repository.JournalRepository
 import org.springframework.cache.annotation.CacheEvict
 import org.springframework.cache.annotation.Cacheable
@@ -16,6 +19,8 @@ import java.time.LocalDate
 class JournalService(
     private val journalRepository: JournalRepository,
     private val journalImageService: JournalImageService,
+    private val journalCommentRepository: JournalCommentRepository,
+    private val journalRatingRepository: JournalRatingRepository,
 ) {
     @Transactional(readOnly = true)
     @Cacheable(value = ["journals"], key = "#userId + '-' + #startDate + '-' + #endDate + '-' + #page + '-' + #size")
@@ -30,9 +35,24 @@ class JournalService(
         val journals = result.content
         val journalIds = journals.map { it.id }
         val imagesMap = journalImageService.getImageMetasByJournalIds(journalIds, userId)
+        val commentCounts = journalIds.associateWith { journalCommentRepository.countByJournalId(it) }
+        val likeStats = if (journalIds.isNotEmpty()) {
+            journalRatingRepository.findLikeCountsByJournalIds(journalIds).associateBy { it.journalId }
+        } else emptyMap()
+        val myLikes = if (journalIds.isNotEmpty()) {
+            journalRatingRepository.findByJournalIdInAndUserId(journalIds, userId).associateBy { it.journalId }
+        } else emptyMap()
 
         return PageResponse(
-            content = journals.map { it.toResponse(imagesMap[it.id] ?: emptyList()) },
+            content = journals.map {
+                it.toResponse(
+                    images = imagesMap[it.id] ?: emptyList(),
+                    commentCount = commentCounts[it.id] ?: 0,
+                    likeCount = likeStats[it.id]?.likeCount ?: 0,
+                    dislikeCount = likeStats[it.id]?.dislikeCount ?: 0,
+                    myLike = myLikes[it.id]?.liked,
+                )
+            },
             totalElements = result.totalElements,
             totalPages = result.totalPages,
             page = page,
@@ -47,7 +67,11 @@ class JournalService(
             .orElseThrow { NotFoundException("Journal not found") }
         if (journal.userId != userId) throw ForbiddenException("Not authorized")
         val images = journalImageService.getImageMetas(id, userId)
-        return journal.toResponse(images)
+        val commentCount = journalCommentRepository.countByJournalId(id)
+        val likeCount = journalRatingRepository.countByJournalIdAndLiked(id, true)
+        val dislikeCount = journalRatingRepository.countByJournalIdAndLiked(id, false)
+        val myLike = journalRatingRepository.findByJournalIdAndUserId(id, userId)?.liked
+        return journal.toResponse(images, commentCount, likeCount, dislikeCount, myLike)
     }
 
     @Transactional
@@ -82,10 +106,42 @@ class JournalService(
             .orElseThrow { NotFoundException("Journal not found") }
         if (journal.userId != userId) throw ForbiddenException("Not authorized")
         journalImageService.deleteByJournalId(id)
+        journalCommentRepository.deleteByJournalId(id)
+        journalRatingRepository.deleteByJournalId(id)
         journalRepository.delete(journal)
     }
 
-    private fun Journal.toResponse(images: List<JournalImageResponse> = emptyList()) = JournalResponse(
+    @Transactional
+    @CacheEvict(value = ["journals", "journalDetail"], allEntries = true)
+    fun updateLike(userId: Long, id: Long, request: JournalLikeRequest): JournalResponse {
+        val journal = journalRepository.findById(id)
+            .orElseThrow { NotFoundException("Journal not found") }
+
+        val existing = journalRatingRepository.findByJournalIdAndUserId(id, userId)
+        if (request.liked == null) {
+            if (existing != null) journalRatingRepository.delete(existing)
+        } else {
+            if (existing != null) {
+                existing.liked = request.liked
+                journalRatingRepository.save(existing)
+            } else {
+                journalRatingRepository.save(JournalRating(journalId = id, userId = userId, liked = request.liked))
+            }
+        }
+
+        val commentCount = journalCommentRepository.countByJournalId(id)
+        val likeCount = journalRatingRepository.countByJournalIdAndLiked(id, true)
+        val dislikeCount = journalRatingRepository.countByJournalIdAndLiked(id, false)
+        return journal.toResponse(commentCount = commentCount, likeCount = likeCount, dislikeCount = dislikeCount, myLike = request.liked)
+    }
+
+    private fun Journal.toResponse(
+        images: List<JournalImageResponse> = emptyList(),
+        commentCount: Long = 0,
+        likeCount: Long = 0,
+        dislikeCount: Long = 0,
+        myLike: Boolean? = null,
+    ) = JournalResponse(
         id = id,
         userId = userId,
         title = title,
@@ -94,5 +150,9 @@ class JournalService(
         createdAt = createdAt.toString(),
         updatedAt = updatedAt.toString(),
         images = images,
+        likeCount = likeCount,
+        dislikeCount = dislikeCount,
+        myLike = myLike,
+        commentCount = commentCount,
     )
 }

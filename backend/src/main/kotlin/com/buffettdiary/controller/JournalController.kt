@@ -52,6 +52,15 @@ class JournalController(
         return ResponseEntity.noContent().build()
     }
 
+    @PutMapping("/{id}/like")
+    fun updateLike(
+        auth: Authentication,
+        @PathVariable id: Long,
+        @RequestBody request: JournalLikeRequest,
+    ): ResponseEntity<JournalResponse> {
+        return ResponseEntity.ok(journalService.updateLike(userId(auth), id, request))
+    }
+
     // --- Image endpoints ---
 
     @PostMapping("/{journalId}/images", consumes = [MediaType.MULTIPART_FORM_DATA_VALUE])

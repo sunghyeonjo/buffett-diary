@@ -1,3 +1,5 @@
+import type { StockSummary } from './stock'
+
 export type Position = 'BUY' | 'SELL'
 
 export interface TradeImageMeta {
@@ -20,10 +22,13 @@ export interface Trade {
   exitPrice: number | null
   profit: number | null
   reason: string | null
-  rating: number | null
+  likeCount: number
+  dislikeCount: number
+  myLike: boolean | null
   commentCount: number
   createdAt: string
   updatedAt: string
+  stockInfo?: StockSummary
   images: TradeImageMeta[]
 }
 
@@ -42,8 +47,8 @@ export interface TradeCommentRequest {
   content: string
 }
 
-export interface TradeRatingRequest {
-  rating: number | null
+export interface TradeLikeRequest {
+  liked: boolean | null
 }
 
 export interface TradeComment {
