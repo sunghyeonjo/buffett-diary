@@ -1,22 +1,44 @@
-import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useCallback, useEffect, useRef } from 'react'
+import { useInfiniteQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import type { FeedItem } from '@buffett-diary/shared'
 import { feedApi } from '@/api/feed'
 import { formatDate } from '@/lib/date'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { ImageIcon, ThumbsUp, ThumbsDown, MessageSquare } from 'lucide-react'
+import { ImageIcon, ThumbsUp, ThumbsDown, MessageSquare, Loader2 } from 'lucide-react'
 import { TickerLogo } from '@/components/StockLogo'
 
 export default function FeedPage() {
   const navigate = useNavigate()
-  const [page, setPage] = useState(0)
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['feed', page],
-    queryFn: () => feedApi.list(page).then((r) => r.data),
+  const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery({
+    queryKey: ['feed'],
+    queryFn: ({ pageParam = 0 }) => feedApi.list(pageParam).then((r) => r.data),
+    getNextPageParam: (lastPage) =>
+      lastPage.page < lastPage.totalPages - 1 ? lastPage.page + 1 : undefined,
+    initialPageParam: 0,
   })
+
+  const feedItems = data?.pages.flatMap((p) => p.content) ?? []
+
+  const observerRef = useRef<HTMLDivElement>(null)
+  const handleObserver = useCallback(
+    (entries: IntersectionObserverEntry[]) => {
+      if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
+        fetchNextPage()
+      }
+    },
+    [fetchNextPage, hasNextPage, isFetchingNextPage]
+  )
+
+  useEffect(() => {
+    const el = observerRef.current
+    if (!el) return
+    const observer = new IntersectionObserver(handleObserver, { threshold: 0.1 })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [handleObserver])
 
   return (
     <div className="space-y-4">
@@ -24,7 +46,7 @@ export default function FeedPage() {
 
       {isLoading ? (
         <div className="py-8 text-center text-muted-foreground">피드를 불러오는 중...</div>
-      ) : !data?.content.length ? (
+      ) : !feedItems.length ? (
         <div className="py-16 text-center text-muted-foreground">
           <p className="text-lg">피드가 비어 있습니다</p>
           <p className="mt-1 text-sm">다른 투자자를 팔로우하면 여기에 업데이트가 표시됩니다</p>
@@ -35,24 +57,16 @@ export default function FeedPage() {
       ) : (
         <>
           <div className="grid gap-3">
-            {data.content.map((item, i) => (
+            {feedItems.map((item, i) => (
               <FeedCard key={`${item.type}-${item.createdAt}-${i}`} item={item} onAuthorClick={(id) => navigate(`/users/${id}`)} />
             ))}
           </div>
 
-          {data.totalPages > 1 && (
-            <div className="flex items-center justify-center gap-2">
-              <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>
-                이전
-              </Button>
-              <span className="text-sm text-muted-foreground">
-                Page {page + 1} of {data.totalPages}
-              </span>
-              <Button variant="outline" size="sm" disabled={page >= data.totalPages - 1} onClick={() => setPage((p) => p + 1)}>
-                다음
-              </Button>
-            </div>
-          )}
+          <div ref={observerRef} className="py-4 text-center">
+            {isFetchingNextPage && (
+              <Loader2 className="mx-auto h-5 w-5 animate-spin text-muted-foreground" />
+            )}
+          </div>
         </>
       )}
     </div>

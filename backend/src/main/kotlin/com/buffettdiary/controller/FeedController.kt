@@ -15,11 +15,7 @@ class FeedController(
     private fun userId(auth: Authentication): Long = auth.principal as Long
 
     @GetMapping
-    fun feed(
-        auth: Authentication,
-        @RequestParam(defaultValue = "0") page: Int,
-        @RequestParam(defaultValue = "20") size: Int,
-    ): ResponseEntity<PageResponse<FeedItem>> {
+    fun feed(auth: Authentication, @RequestParam(defaultValue = "0") page: Int, @RequestParam(defaultValue = "20") size: Int): ResponseEntity<PageResponse<FeedItem>> {
         return ResponseEntity.ok(feedService.feed(userId(auth), page, size))
     }
 }

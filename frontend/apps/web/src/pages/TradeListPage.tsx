@@ -1,12 +1,12 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { Trade, TradeFilter } from '@buffett-diary/shared'
 import dayjs from 'dayjs'
 import { tradesApi, tradeImagesApi, tradeLikeApi } from '@/api/trades'
 import { formatDate } from '@/lib/date'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Plus, Pencil, Trash2, ImageIcon, X, Download, ChevronLeft, ChevronRight, List, MessageSquare, ThumbsUp, ThumbsDown } from 'lucide-react'
+import { Plus, Pencil, Trash2, ImageIcon, X, Download, ChevronLeft, ChevronRight, List, MessageSquare, ThumbsUp, ThumbsDown, Loader2 } from 'lucide-react'
 import { TabFilter } from '@/components/ui/tab-filter'
 import { TickerCombobox } from '@/components/TickerCombobox'
 import TradeFormModal from '@/components/TradeFormModal'
@@ -18,7 +18,6 @@ import { TickerLogo } from '@/components/StockLogo'
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토']
 
 const INITIAL_FILTER: TradeFilter = {
-  page: 0,
   size: 20,
 }
 
@@ -383,7 +382,7 @@ export default function TradeListPage() {
   const [position, setPosition] = useState('')
 
   const updateFilter = (patch: Partial<TradeFilter>) => {
-    setFilter((f) => ({ ...f, ...patch, page: 0 }))
+    setFilter((f) => ({ ...f, ...patch }))
   }
 
   const resetFilters = () => {
@@ -394,10 +393,33 @@ export default function TradeListPage() {
 
   const hasActiveFilters = ticker || position
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery({
     queryKey: ['trades', filter],
-    queryFn: () => tradesApi.list(filter).then((r) => r.data),
+    queryFn: ({ pageParam = 0 }) => tradesApi.list({ ...filter, page: pageParam }).then((r) => r.data),
+    getNextPageParam: (lastPage) =>
+      lastPage.page < lastPage.totalPages - 1 ? lastPage.page + 1 : undefined,
+    initialPageParam: 0,
   })
+
+  const allTrades = data?.pages.flatMap((p) => p.content) ?? []
+
+  const observerRef = useRef<HTMLDivElement>(null)
+  const handleObserver = useCallback(
+    (entries: IntersectionObserverEntry[]) => {
+      if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
+        fetchNextPage()
+      }
+    },
+    [fetchNextPage, hasNextPage, isFetchingNextPage]
+  )
+
+  useEffect(() => {
+    const el = observerRef.current
+    if (!el) return
+    const observer = new IntersectionObserver(handleObserver, { threshold: 0.1 })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [handleObserver])
 
   const deleteMutation = useMutation({
     mutationFn: tradesApi.delete,
@@ -409,7 +431,7 @@ export default function TradeListPage() {
   })
 
   const dateGroups = useMemo<DateGroup[]>(() => {
-    const trades = data?.content ?? []
+    const trades = allTrades
     const groupMap = new Map<string, Trade[]>()
     for (const t of trades) {
       const existing = groupMap.get(t.tradeDate)
@@ -429,7 +451,7 @@ export default function TradeListPage() {
         dayProfit,
       }
     })
-  }, [data?.content])
+  }, [allTrades])
 
   const formatProfit = (v: number) => {
     const formatted = Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -593,28 +615,12 @@ export default function TradeListPage() {
         </div>
       )}
 
-      {/* Pagination */}
-      {data && data.totalPages > 1 && (
-        <div className="flex items-center justify-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={filter.page === 0}
-            onClick={() => setFilter((f) => ({ ...f, page: (f.page ?? 0) - 1 }))}
-          >
-            이전
-          </Button>
-          <span className="text-sm text-muted-foreground">
-            {(filter.page ?? 0) + 1} / {data.totalPages}
-          </span>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={(filter.page ?? 0) >= data.totalPages - 1}
-            onClick={() => setFilter((f) => ({ ...f, page: (f.page ?? 0) + 1 }))}
-          >
-            다음
-          </Button>
+      {/* Infinite scroll observer */}
+      {dateGroups.length > 0 && (
+        <div ref={observerRef} className="py-4 text-center">
+          {isFetchingNextPage && (
+            <Loader2 className="mx-auto h-5 w-5 animate-spin text-muted-foreground" />
+          )}
         </div>
       )}
 

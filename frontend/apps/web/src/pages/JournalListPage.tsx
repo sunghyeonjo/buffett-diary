@@ -1,17 +1,16 @@
-import { useCallback, useEffect, useState } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import type { Journal, JournalFilter } from '@buffett-diary/shared'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useInfiniteQuery, useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import type { Journal, JournalFilter, Trade } from '@buffett-diary/shared'
 import dayjs from 'dayjs'
-import { journalsApi, journalImagesApi } from '@/api/journals'
+import { journalsApi, journalImagesApi, journalLikeApi } from '@/api/journals'
+import { tradesApi } from '@/api/trades'
 import { formatDate } from '@/lib/date'
-import { toDateString } from '@/lib/date'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Plus, Trash2, Pencil, ImageIcon, X, Download, ChevronLeft, ChevronRight } from 'lucide-react'
-import { TabFilter } from '@/components/ui/tab-filter'
+import { Plus, Trash2, Pencil, X, Download, ChevronLeft, ChevronRight, ThumbsUp, ThumbsDown, MessageSquare, Loader2 } from 'lucide-react'
 import JournalFormModal from '@/components/JournalFormModal'
+import JournalCommentSection from '@/components/JournalCommentSection'
 
-const INITIAL_FILTER: JournalFilter = { page: 0, size: 20 }
+const INITIAL_FILTER: JournalFilter = { size: 20 }
 
 // --- Image Viewer ---
 function ImageViewer({
@@ -76,8 +75,8 @@ function ImageViewer({
   )
 }
 
-// --- Journal Card with Thumbnail ---
-function JournalCard({
+// --- Blog-style Journal List Item ---
+function JournalListItem({
   journal,
   onClick,
 }: {
@@ -101,29 +100,75 @@ function JournalCard({
 
   return (
     <div
-      className="cursor-pointer overflow-hidden rounded-lg border transition-colors hover:bg-muted/50"
+      className="flex cursor-pointer gap-4 border-b py-5 transition-colors hover:bg-muted/30"
       onClick={onClick}
     >
+      {/* Text content */}
+      <div className="min-w-0 flex-1">
+        <h3 className="text-xl font-bold">{journal.title}</h3>
+        <p className="mt-2 line-clamp-4 text-sm leading-relaxed text-muted-foreground">
+          {journal.content}
+        </p>
+        <p className="mt-3 text-sm text-muted-foreground">
+          {dayjs(journal.journalDate).format('YYYY.MM.DD')}
+        </p>
+      </div>
+
       {/* Thumbnail */}
       {thumbnailUrl && (
-        <div className="aspect-[16/9] overflow-hidden bg-muted">
-          <img src={thumbnailUrl} alt="" className="h-full w-full object-cover" />
+        <div className="shrink-0">
+          <img
+            src={thumbnailUrl}
+            alt=""
+            className="h-[140px] w-[140px] rounded-lg object-cover"
+          />
         </div>
       )}
+    </div>
+  )
+}
 
-      {/* Content */}
-      <div className="p-4">
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">{formatDate(journal.journalDate)}</span>
-          {journal.images.length > 1 && (
-            <Badge variant="outline" className="gap-1 text-xs">
-              <ImageIcon className="h-3 w-3" />
-              {journal.images.length}
-            </Badge>
-          )}
-        </div>
-        <h3 className="mt-1.5 font-semibold">{journal.title}</h3>
-        <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{journal.content}</p>
+// --- Related Trades Section ---
+function RelatedTrades({ journalDate }: { journalDate: string }) {
+  const { data: tradesData } = useQuery({
+    queryKey: ['trades', 'journal-related', journalDate],
+    queryFn: () => tradesApi.list({ startDate: journalDate, endDate: journalDate, size: 50 }).then((r) => r.data),
+  })
+
+  const trades = tradesData?.content
+  if (!trades?.length) return null
+
+  const formatPrice = (n: number) => n.toLocaleString()
+
+  return (
+    <div>
+      <h3 className="mb-2 text-sm font-medium text-muted-foreground">이 날의 매매</h3>
+      <div className="space-y-2">
+        {trades.map((trade: Trade) => (
+          <div key={trade.id} className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
+            <div className="flex items-center gap-2">
+              <span
+                className={`rounded px-1.5 py-0.5 text-xs font-medium ${
+                  trade.position === 'BUY'
+                    ? 'bg-red-100 text-red-700'
+                    : 'bg-blue-100 text-blue-700'
+                }`}
+              >
+                {trade.position === 'BUY' ? '매수' : '매도'}
+              </span>
+              <span className="font-medium">{trade.ticker}</span>
+              <span className="text-muted-foreground">{trade.quantity}주</span>
+            </div>
+            <div className="text-right">
+              <span className="text-muted-foreground">{formatPrice(trade.entryPrice)}원</span>
+              {trade.profit != null && (
+                <span className={`ml-2 font-medium ${trade.profit > 0 ? 'text-red-600' : trade.profit < 0 ? 'text-blue-600' : ''}`}>
+                  {trade.profit > 0 ? '+' : ''}{formatPrice(trade.profit)}
+                </span>
+              )}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   )
@@ -134,10 +179,12 @@ function JournalDetailPanel({
   journal,
   onClose,
   onEdit,
+  onJournalUpdated,
 }: {
   journal: Journal
   onClose: () => void
   onEdit: () => void
+  onJournalUpdated: (updated: Journal) => void
 }) {
   const queryClient = useQueryClient()
   const [imageUrls, setImageUrls] = useState<Map<number, string>>(new Map())
@@ -151,6 +198,18 @@ function JournalDetailPanel({
       onClose()
     },
   })
+
+  const likeMutation = useMutation({
+    mutationFn: (liked: boolean | null) => journalLikeApi.update(journal.id, { liked }),
+    onSuccess: ({ data: updated }) => {
+      queryClient.invalidateQueries({ queryKey: ['journals'] })
+      onJournalUpdated(updated)
+    },
+  })
+
+  const handleLike = (liked: boolean) => {
+    likeMutation.mutate(journal.myLike === liked ? null : liked)
+  }
 
   const loadImages = useCallback(async () => {
     if (!journal.images?.length) return
@@ -198,6 +257,37 @@ function JournalDetailPanel({
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
           <div>
             <p className="whitespace-pre-wrap text-sm leading-relaxed">{journal.content}</p>
+          </div>
+
+          {/* Like / Dislike */}
+          <div>
+            <h3 className="mb-2 text-sm font-medium text-muted-foreground">일지 평가</h3>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                className={`flex items-center gap-1 rounded-full border px-3 py-1.5 text-sm transition-colors ${
+                  journal.myLike === true
+                    ? 'border-red-300 bg-red-50 text-red-600'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+                onClick={() => handleLike(true)}
+              >
+                <ThumbsUp className="h-4 w-4" />
+                <span className="tabular-nums">{journal.likeCount}</span>
+              </button>
+              <button
+                type="button"
+                className={`flex items-center gap-1 rounded-full border px-3 py-1.5 text-sm transition-colors ${
+                  journal.myLike === false
+                    ? 'border-blue-300 bg-blue-50 text-blue-600'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+                onClick={() => handleLike(false)}
+              >
+                <ThumbsDown className="h-4 w-4" />
+                <span className="tabular-nums">{journal.dislikeCount}</span>
+              </button>
+            </div>
           </div>
 
           {/* Image Gallery */}
@@ -250,6 +340,12 @@ function JournalDetailPanel({
               </div>
             )
           })()}
+
+          {/* Related Trades */}
+          <RelatedTrades journalDate={journal.journalDate} />
+
+          {/* Comments */}
+          <JournalCommentSection journalId={journal.id} canComment />
         </div>
 
         {/* Footer */}
@@ -293,34 +389,37 @@ export default function JournalListPage() {
   const [filter, setFilter] = useState<JournalFilter>(INITIAL_FILTER)
   const [selectedJournal, setSelectedJournal] = useState<Journal | null>(null)
   const [formJournalId, setFormJournalId] = useState<number | 'new' | null>(null)
-  const [period, setPeriod] = useState('')
 
-  const periodToDates = (p: string): { startDate?: string; endDate?: string } => {
-    if (!p) return { startDate: undefined, endDate: undefined }
-    const today = dayjs()
-    const end = toDateString(today)
-    if (p === 'today') return { startDate: end, endDate: end }
-    if (p === 'week') return { startDate: toDateString(today.startOf('week').add(1, 'day')), endDate: end }
-    if (p === 'month') return { startDate: toDateString(today.startOf('month')), endDate: end }
-    return { startDate: undefined, endDate: undefined }
-  }
-
-  const updateFilter = (patch: Partial<JournalFilter>) => {
-    setFilter((f) => ({ ...f, ...patch, page: 0 }))
-  }
-
-  const resetFilters = () => {
-    setPeriod('')
-    setFilter(INITIAL_FILTER)
-  }
-
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery({
     queryKey: ['journals', filter],
-    queryFn: () => journalsApi.list(filter).then((r) => r.data),
+    queryFn: ({ pageParam = 0 }) => journalsApi.list({ ...filter, page: pageParam }).then((r) => r.data),
+    getNextPageParam: (lastPage) =>
+      lastPage.page < lastPage.totalPages - 1 ? lastPage.page + 1 : undefined,
+    initialPageParam: 0,
   })
 
+  const journals = data?.pages.flatMap((p) => p.content) ?? []
+
+  const observerRef = useRef<HTMLDivElement>(null)
+  const handleObserver = useCallback(
+    (entries: IntersectionObserverEntry[]) => {
+      if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
+        fetchNextPage()
+      }
+    },
+    [fetchNextPage, hasNextPage, isFetchingNextPage]
+  )
+
+  useEffect(() => {
+    const el = observerRef.current
+    if (!el) return
+    const observer = new IntersectionObserver(handleObserver, { threshold: 0.1 })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [handleObserver])
+
   return (
-    <div className="space-y-4">
+    <div className="mx-auto max-w-3xl space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">투자일지</h1>
         <Button onClick={() => setFormJournalId('new')}>
@@ -329,40 +428,18 @@ export default function JournalListPage() {
         </Button>
       </div>
 
-      {/* Date Filter */}
-      <div className="flex flex-wrap items-center gap-3">
-        <TabFilter
-          options={[
-            { value: '', label: '전체' },
-            { value: 'today', label: '오늘' },
-            { value: 'week', label: '이번 주' },
-            { value: 'month', label: '이번 달' },
-          ]}
-          value={period}
-          onChange={(v) => {
-            setPeriod(v)
-            updateFilter(periodToDates(v))
-          }}
-        />
-        {period && (
-          <Button variant="ghost" size="sm" onClick={resetFilters}>
-            필터 초기화
-          </Button>
-        )}
-      </div>
-
       {isLoading ? (
         <div className="py-8 text-center text-muted-foreground">일지를 불러오는 중...</div>
-      ) : !data?.content.length ? (
+      ) : !journals.length ? (
         <div className="py-16 text-center text-muted-foreground">
-          <p className="text-lg">{period ? '해당 기간에 작성된 일지가 없습니다' : '작성된 투자일지가 없습니다'}</p>
+          <p className="text-lg">작성된 투자일지가 없습니다</p>
           <p className="mt-1 text-sm">오늘의 시장 뷰와 투자 생각을 기록해보세요</p>
         </div>
       ) : (
         <>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {data.content.map((journal) => (
-              <JournalCard
+          <div>
+            {journals.map((journal) => (
+              <JournalListItem
                 key={journal.id}
                 journal={journal}
                 onClick={() => setSelectedJournal(journal)}
@@ -370,29 +447,11 @@ export default function JournalListPage() {
             ))}
           </div>
 
-          {data.totalPages > 1 && (
-            <div className="flex items-center justify-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={filter.page === 0}
-                onClick={() => setFilter((f) => ({ ...f, page: (f.page ?? 0) - 1 }))}
-              >
-                이전
-              </Button>
-              <span className="text-sm text-muted-foreground">
-                Page {(filter.page ?? 0) + 1} of {data.totalPages}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={(filter.page ?? 0) >= data.totalPages - 1}
-                onClick={() => setFilter((f) => ({ ...f, page: (f.page ?? 0) + 1 }))}
-              >
-                다음
-              </Button>
-            </div>
-          )}
+          <div ref={observerRef} className="py-4 text-center">
+            {isFetchingNextPage && (
+              <Loader2 className="mx-auto h-5 w-5 animate-spin text-muted-foreground" />
+            )}
+          </div>
         </>
       )}
 
@@ -405,6 +464,7 @@ export default function JournalListPage() {
             setFormJournalId(selectedJournal.id)
             setSelectedJournal(null)
           }}
+          onJournalUpdated={(updated) => setSelectedJournal(updated)}
         />
       )}
 
