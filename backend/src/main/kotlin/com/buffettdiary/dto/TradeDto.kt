@@ -31,7 +31,6 @@ data class TradeResponse(
     val profit: BigDecimal?,
     val reason: String?,
     val likeCount: Long,
-    val dislikeCount: Long,
     val myLike: Boolean?,
     val commentCount: Long,
     val createdAt: String,

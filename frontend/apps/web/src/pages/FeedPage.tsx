@@ -1,18 +1,66 @@
-import { useCallback, useEffect, useRef } from 'react'
-import { useInfiniteQuery } from '@tanstack/react-query'
+import { useState, useCallback, useEffect, useRef } from 'react'
+import { useInfiniteQuery, useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import type { FeedItem } from '@buffett-diary/shared'
+import type { FeedItem, AuthorSummary } from '@buffett-diary/shared'
 import { feedApi } from '@/api/feed'
+import { usersApi } from '@/api/users'
+import { followsApi } from '@/api/follows'
 import { formatDate } from '@/lib/date'
+import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { ImageIcon, ThumbsUp, ThumbsDown, MessageSquare, Loader2 } from 'lucide-react'
 import { TickerLogo } from '@/components/StockLogo'
+import TradeDetailModal from '@/components/TradeDetailModal'
+import JournalCommentSection from '@/components/JournalCommentSection'
+import { ImageIcon, Search, ThumbsUp, MessageSquare, Loader2, X } from 'lucide-react'
+
+function getGreetingSubtitle(): string {
+  const hour = new Date().getHours()
+  if (hour < 12) return '좋은 아침입니다 ☀️'
+  if (hour < 18) return '활기찬 하루 보내고 계신가요? 🌤️'
+  return '마음을 편하게 가지고 오늘을 잘 마무리하세요 🌙'
+}
 
 export default function FeedPage() {
+  const { user } = useAuth()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const [selectedFeedItem, setSelectedFeedItem] = useState<FeedItem | null>(null)
 
-  const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery({
+  // User search state
+  const [searchInput, setSearchInput] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
+
+  const { data: searchData, isLoading: searchLoading } = useQuery({
+    queryKey: ['userSearch', searchQuery],
+    queryFn: () => usersApi.search(searchQuery).then((r) => r.data),
+    enabled: searchQuery.length > 0,
+  })
+
+  const followMutation = useMutation({
+    mutationFn: (userId: number) => followsApi.follow(userId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['userSearch'] }),
+  })
+
+  const unfollowMutation = useMutation({
+    mutationFn: (userId: number) => followsApi.unfollow(userId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['userSearch'] }),
+  })
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault()
+    setSearchQuery(searchInput.trim())
+  }
+
+  // Feed infinite scroll
+  const {
+    data: feedData,
+    isLoading: feedLoading,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
     queryKey: ['feed'],
     queryFn: ({ pageParam = 0 }) => feedApi.list(pageParam).then((r) => r.data),
     getNextPageParam: (lastPage) =>
@@ -20,7 +68,7 @@ export default function FeedPage() {
     initialPageParam: 0,
   })
 
-  const feedItems = data?.pages.flatMap((p) => p.content) ?? []
+  const feedItems = feedData?.pages.flatMap((p) => p.content) ?? []
 
   const observerRef = useRef<HTMLDivElement>(null)
   const handleObserver = useCallback(
@@ -40,125 +88,254 @@ export default function FeedPage() {
     return () => observer.disconnect()
   }, [handleObserver])
 
+  const handleAuthorClick = (id: number) => {
+    setSelectedFeedItem(null)
+    navigate(`/users/${id}`)
+  }
+
   return (
-    <div className="space-y-4">
-      <h1 className="text-2xl font-bold">피드</h1>
+    <div className="mx-auto max-w-2xl space-y-6">
+      {/* Greeting */}
+      <div>
+        <h1 className="text-lg font-bold">안녕하세요, {user?.nickname}님</h1>
+        <p className="text-sm text-muted-foreground">{getGreetingSubtitle()}</p>
+      </div>
 
-      {isLoading ? (
-        <div className="py-8 text-center text-muted-foreground">피드를 불러오는 중...</div>
-      ) : !feedItems.length ? (
-        <div className="py-16 text-center text-muted-foreground">
-          <p className="text-lg">피드가 비어 있습니다</p>
-          <p className="mt-1 text-sm">다른 투자자를 팔로우하면 여기에 업데이트가 표시됩니다</p>
-          <Button variant="outline" className="mt-4" onClick={() => navigate('/search')}>
-            투자자 찾기
-          </Button>
+      {/* User Search */}
+      <form onSubmit={handleSearch} className="relative">
+        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
+          placeholder="닉네임으로 투자자 검색"
+          className="pl-9 pr-16"
+        />
+        <Button
+          type="submit"
+          size="sm"
+          disabled={!searchInput.trim()}
+          className="absolute right-1.5 top-1/2 -translate-y-1/2 h-7"
+        >
+          검색
+        </Button>
+      </form>
+
+      {/* Search Results */}
+      {searchQuery && (
+        <div>
+          {searchLoading ? (
+            <div className="py-4 text-center text-sm text-muted-foreground">검색 중...</div>
+          ) : !searchData?.content.length ? (
+            <div className="py-4 text-center text-sm text-muted-foreground">검색 결과가 없습니다</div>
+          ) : (
+            <div className="divide-y rounded-xl border">
+              {searchData.content.map((u) => (
+                <div
+                  key={u.id}
+                  className="flex items-center justify-between px-4 py-3"
+                >
+                  <button
+                    className="flex items-center gap-3 min-w-0"
+                    onClick={() => navigate(u.id === user?.id ? '/mypage' : `/users/${u.id}`)}
+                  >
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary/80 to-primary text-xs font-bold text-primary-foreground">
+                      {u.nickname.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="text-left min-w-0">
+                      <p className="text-sm font-semibold truncate">{u.nickname}</p>
+                      {u.bio && <p className="text-xs text-muted-foreground truncate">{u.bio}</p>}
+                    </div>
+                  </button>
+                  {user?.id !== u.id && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="ml-3 shrink-0 h-8 text-xs"
+                      onClick={() => navigate(`/users/${u.id}`)}
+                    >
+                      프로필 보기
+                    </Button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
-      ) : (
-        <>
-          <div className="grid gap-3">
-            {feedItems.map((item, i) => (
-              <FeedCard key={`${item.type}-${item.createdAt}-${i}`} item={item} onAuthorClick={(id) => navigate(`/users/${id}`)} />
-            ))}
-          </div>
+      )}
 
-          <div ref={observerRef} className="py-4 text-center">
-            {isFetchingNextPage && (
-              <Loader2 className="mx-auto h-5 w-5 animate-spin text-muted-foreground" />
-            )}
+      {/* Feed */}
+      <div>
+        <h2 className="text-sm font-semibold text-muted-foreground">피드</h2>
+
+        {feedLoading ? (
+          <div className="py-8 text-center text-sm text-muted-foreground">불러오는 중...</div>
+        ) : !feedItems.length ? (
+          <div className="mt-2.5 flex items-center justify-between rounded-xl border border-dashed px-4 py-3">
+            <div className="flex items-center gap-3">
+              <Search className="h-5 w-5 text-muted-foreground/50" />
+              <div>
+                <p className="text-sm font-medium">팔로우한 투자자가 없습니다</p>
+                <p className="text-xs text-muted-foreground">위 검색바에서 다른 투자자를 찾아 팔로우해보세요</p>
+              </div>
+            </div>
           </div>
-        </>
+        ) : (
+          <>
+            <div className="mt-2.5 space-y-3">
+              {feedItems.map((item, i) => (
+                <FeedCard
+                  key={`${item.type}-${i}`}
+                  item={item}
+                  onAuthorClick={(id) => navigate(`/users/${id}`)}
+                  onClick={() => setSelectedFeedItem(item)}
+                />
+              ))}
+            </div>
+
+            <div ref={observerRef} className="py-4 text-center">
+              {isFetchingNextPage && (
+                <Loader2 className="mx-auto h-5 w-5 animate-spin text-muted-foreground" />
+              )}
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Feed Detail Modals */}
+      {selectedFeedItem?.type === 'trade' && selectedFeedItem.trade && (
+        <TradeDetailModal
+          trade={selectedFeedItem.trade}
+          author={selectedFeedItem.author}
+          onAuthorClick={handleAuthorClick}
+          onClose={() => setSelectedFeedItem(null)}
+        />
+      )}
+      {selectedFeedItem?.type === 'journal' && selectedFeedItem.journal && (
+        <JournalDetailModal
+          journal={selectedFeedItem.journal}
+          author={selectedFeedItem.author}
+          onAuthorClick={handleAuthorClick}
+          onClose={() => setSelectedFeedItem(null)}
+        />
       )}
     </div>
   )
 }
 
-function FeedCard({ item, onAuthorClick }: { item: FeedItem; onAuthorClick: (id: number) => void }) {
+function FeedCard({
+  item,
+  onAuthorClick,
+  onClick,
+}: {
+  item: FeedItem
+  onAuthorClick: (id: number) => void
+  onClick: () => void
+}) {
+  const authorInitial = item.author.nickname.charAt(0).toUpperCase()
+
   if (item.type === 'journal' && item.journal) {
     const journal = item.journal
     return (
-      <div className="rounded-lg border p-4">
-        <div className="flex items-center gap-2 text-sm">
+      <div
+        className="cursor-pointer rounded-xl border p-4 transition-colors hover:bg-muted/30"
+        onClick={onClick}
+      >
+        <div className="flex items-center gap-2.5">
           <button
-            className="font-semibold hover:underline"
-            onClick={() => onAuthorClick(item.author.id)}
+            onClick={(e) => { e.stopPropagation(); onAuthorClick(item.author.id) }}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary/80 to-primary text-xs font-bold text-primary-foreground"
           >
-            {item.author.nickname}
+            {authorInitial}
           </button>
-          <span className="text-muted-foreground">투자일지</span>
-          <span className="text-muted-foreground">{formatDate(journal.journalDate)}</span>
-          {journal.images.length > 0 && (
-            <Badge variant="outline" className="gap-1 text-xs">
-              <ImageIcon className="h-3 w-3" />
-              {journal.images.length}
-            </Badge>
-          )}
+          <div className="min-w-0 flex-1">
+            <button className="text-sm font-semibold hover:underline" onClick={(e) => { e.stopPropagation(); onAuthorClick(item.author.id) }}>
+              {item.author.nickname}
+            </button>
+            <p className="text-xs text-muted-foreground">{formatDate(journal.journalDate)}</p>
+          </div>
+          <Badge variant="secondary" className="text-[10px]">투자일지</Badge>
         </div>
-        <h3 className="mt-2 font-semibold">{journal.title}</h3>
-        <p className="mt-1 line-clamp-3 text-sm text-muted-foreground">{journal.content}</p>
+        <div className="mt-3">
+          <h3 className="font-semibold">{journal.title}</h3>
+          <p className="mt-1 line-clamp-3 text-sm text-muted-foreground leading-relaxed">{journal.content}</p>
+        </div>
+        {journal.images.length > 0 && (
+          <div className="mt-2 flex items-center gap-1 text-xs text-muted-foreground">
+            <ImageIcon className="h-3.5 w-3.5" />
+            사진 {journal.images.length}장
+          </div>
+        )}
+
+        <div className="mt-2.5 flex items-center gap-4 text-xs text-muted-foreground">
+          <span className="flex items-center gap-1">
+            <ThumbsUp className="h-3.5 w-3.5" />
+            {journal.likeCount}
+          </span>
+          <span className="flex items-center gap-1">
+            <MessageSquare className="h-3.5 w-3.5" />
+            {journal.commentCount}
+          </span>
+        </div>
       </div>
     )
   }
 
   if (item.type === 'trade' && item.trade) {
     const trade = item.trade
-    const authorInitial = item.author.nickname.charAt(0).toUpperCase()
-    const borderColor = trade.position === 'BUY' ? 'border-l-red-400' : 'border-l-blue-400'
     return (
-      <div className={`rounded-lg border border-l-4 ${borderColor} px-3 py-2.5`}>
-        {/* Row 1: author + ticker + badge + date */}
-        <div className="flex items-center gap-2">
+      <div
+        className="cursor-pointer rounded-xl border p-4 transition-colors hover:bg-muted/30"
+        onClick={onClick}
+      >
+        <div className="flex items-center gap-2.5">
           <button
-            onClick={() => onAuthorClick(item.author.id)}
-            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary/80 to-primary text-[10px] font-bold text-primary-foreground"
+            onClick={(e) => { e.stopPropagation(); onAuthorClick(item.author.id) }}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary/80 to-primary text-xs font-bold text-primary-foreground"
           >
             {authorInitial}
           </button>
-          <button className="text-sm font-semibold hover:underline" onClick={() => onAuthorClick(item.author.id)}>
-            {item.author.nickname}
-          </button>
-          <span className="text-muted-foreground">·</span>
-          <TickerLogo ticker={trade.ticker} stockInfo={trade.stockInfo} className="h-5 w-5 shrink-0" />
-          <span className="font-mono text-sm font-semibold">{trade.ticker}</span>
+          <div className="min-w-0 flex-1">
+            <button className="text-sm font-semibold hover:underline" onClick={(e) => { e.stopPropagation(); onAuthorClick(item.author.id) }}>
+              {item.author.nickname}
+            </button>
+            <p className="text-xs text-muted-foreground">{formatDate(trade.tradeDate)}</p>
+          </div>
           <Badge
             variant="outline"
-            className={`text-[10px] py-0 ${trade.position === 'BUY'
+            className={`text-[10px] ${trade.position === 'BUY'
               ? 'border-red-300 bg-red-50 text-red-700'
               : 'border-blue-300 bg-blue-50 text-blue-700'}`}
           >
             {trade.position === 'BUY' ? '매수' : '매도'}
           </Badge>
-          <span className="ml-auto shrink-0 text-[11px] text-muted-foreground">{formatDate(trade.tradeDate)}</span>
         </div>
 
-        {/* Row 2: price · qty · profit */}
-        <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground pl-8">
-          <span>${trade.entryPrice.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
-          <span>{trade.quantity}주</span>
+        <div className="mt-3 flex items-center gap-2.5">
+          <TickerLogo ticker={trade.ticker} stockInfo={trade.stockInfo} className="h-8 w-8 shrink-0" />
+          <div className="min-w-0 flex-1">
+            <span className="font-mono text-sm font-semibold">{trade.ticker}</span>
+            <span className="ml-2 text-xs text-muted-foreground">
+              {trade.quantity}주 · ${trade.entryPrice.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            </span>
+          </div>
           {trade.profit != null && (
-            <span className={`font-semibold ${trade.profit > 0 ? 'text-red-600' : trade.profit < 0 ? 'text-blue-600' : 'text-muted-foreground'}`}>
-              {trade.profit > 0 ? '+' : ''}${trade.profit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            <span className={`text-sm font-semibold tabular-nums ${trade.profit > 0 ? 'text-red-600' : trade.profit < 0 ? 'text-blue-600' : 'text-muted-foreground'}`}>
+              {trade.profit > 0 ? '+' : '-'}${Math.abs(trade.profit).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
           )}
         </div>
 
-        {/* Row 3 (optional): reason */}
         {trade.reason && (
-          <p className="mt-1 truncate text-xs text-muted-foreground pl-8">{trade.reason}</p>
+          <p className="mt-2 text-sm text-muted-foreground leading-relaxed line-clamp-2">{trade.reason}</p>
         )}
 
-        {/* Row 4: actions */}
-        <div className="mt-1.5 flex items-center gap-3 text-[11px] text-muted-foreground pl-8">
-          <span className="flex items-center gap-0.5">
-            <ThumbsUp className="h-3 w-3" />
+        <div className="mt-2.5 flex items-center gap-4 text-xs text-muted-foreground">
+          <span className="flex items-center gap-1">
+            <ThumbsUp className="h-3.5 w-3.5" />
             {trade.likeCount}
           </span>
-          <span className="flex items-center gap-0.5">
-            <ThumbsDown className="h-3 w-3" />
-            {trade.dislikeCount}
-          </span>
-          <span className="flex items-center gap-0.5">
-            <MessageSquare className="h-3 w-3" />
+          <span className="flex items-center gap-1">
+            <MessageSquare className="h-3.5 w-3.5" />
             {trade.commentCount}
           </span>
         </div>
@@ -167,4 +344,79 @@ function FeedCard({ item, onAuthorClick }: { item: FeedItem; onAuthorClick: (id:
   }
 
   return null
+}
+
+function JournalDetailModal({
+  journal,
+  author,
+  onAuthorClick,
+  onClose,
+}: {
+  journal: NonNullable<FeedItem['journal']>
+  author: AuthorSummary
+  onAuthorClick: (id: number) => void
+  onClose: () => void
+}) {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [onClose])
+
+  return (
+    <>
+      <div className="fixed inset-0 z-40 bg-black/50" onClick={onClose} />
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div
+          className="w-full max-w-lg max-h-[85vh] overflow-hidden rounded-xl border bg-background shadow-xl flex flex-col"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Header — author */}
+          <div className="flex items-center justify-between border-b px-4 py-3 shrink-0">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <button
+                onClick={() => onAuthorClick(author.id)}
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary/80 to-primary text-xs font-bold text-primary-foreground"
+              >
+                {author.nickname.charAt(0).toUpperCase()}
+              </button>
+              <div className="min-w-0">
+                <button
+                  className="text-sm font-semibold hover:underline"
+                  onClick={() => onAuthorClick(author.id)}
+                >
+                  {author.nickname}
+                </button>
+                <p className="text-xs text-muted-foreground">{formatDate(journal.journalDate)}</p>
+              </div>
+            </div>
+            <button onClick={onClose} className="rounded-md p-1 hover:bg-muted ml-2 shrink-0">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+
+          {/* Content */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            <div>
+              <h2 className="text-lg font-bold">{journal.title}</h2>
+              <p className="mt-2 text-sm whitespace-pre-wrap leading-relaxed">{journal.content}</p>
+            </div>
+
+            {journal.images.length > 0 && (
+              <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                <ImageIcon className="h-3.5 w-3.5" />
+                사진 {journal.images.length}장
+              </div>
+            )}
+
+            <div className="border-t pt-4">
+              <JournalCommentSection journalId={journal.id} canComment={true} />
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
+  )
 }

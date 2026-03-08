@@ -6,6 +6,7 @@ interface AuthContextType {
   user: User | null
   isLoading: boolean
   logout: () => void
+  updateUser: (partial: Partial<User>) => void
 }
 
 const AuthContext = createContext<AuthContextType | null>(null)
@@ -27,6 +28,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsLoading(false)
   }, [])
 
+  const updateUser = useCallback((partial: Partial<User>) => {
+    setUser((prev) => {
+      if (!prev) return prev
+      const updated = { ...prev, ...partial }
+      localStorage.setItem('user', JSON.stringify(updated))
+      return updated
+    })
+  }, [])
+
   const logout = useCallback(() => {
     authApi.logout().catch(() => {})
     localStorage.removeItem('accessToken')
@@ -36,7 +46,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, logout }}>
+    <AuthContext.Provider value={{ user, isLoading, logout, updateUser }}>
       {children}
     </AuthContext.Provider>
   )

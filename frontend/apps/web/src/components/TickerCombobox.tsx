@@ -11,7 +11,7 @@ interface TickerComboboxProps {
   className?: string
 }
 
-export function TickerCombobox({ value, onChange, placeholder = 'AAPL', className }: TickerComboboxProps) {
+export function TickerCombobox({ value, onChange, placeholder = 'AAPL 또는 삼성전자', className }: TickerComboboxProps) {
   const [query, setQuery] = useState(value)
   const [results, setResults] = useState<Stock[]>([])
   const [open, setOpen] = useState(false)
@@ -19,6 +19,7 @@ export function TickerCombobox({ value, onChange, placeholder = 'AAPL', classNam
   const containerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined)
+  const composingRef = useRef(false)
 
   // Sync external value changes
   useEffect(() => {
@@ -42,12 +43,34 @@ export function TickerCombobox({ value, onChange, placeholder = 'AAPL', classNam
     }
   }, [])
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const v = e.target.value.toUpperCase()
-    setQuery(v)
-    onChange(v)
+  const scheduleSearch = useCallback((v: string) => {
     clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => search(v), 300)
+  }, [search])
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const v = e.target.value
+    // 영문만이면 대문자 변환, 한글 포함이면 원본 유지
+    const normalized = /^[a-zA-Z0-9.\-\s]*$/.test(v) ? v.toUpperCase() : v
+    setQuery(normalized)
+    onChange(normalized)
+    // IME 조합 중에는 검색 보류
+    if (!composingRef.current) {
+      scheduleSearch(normalized)
+    }
+  }
+
+  // IME composition handlers — 한글 입력 시 마지막 글자 중복 방지
+  const handleCompositionStart = () => {
+    composingRef.current = true
+  }
+
+  const handleCompositionEnd = (e: React.CompositionEvent<HTMLInputElement>) => {
+    composingRef.current = false
+    // 조합 완료 시점에 검색 실행
+    const v = e.currentTarget.value
+    const normalized = /^[a-zA-Z0-9.\-\s]*$/.test(v) ? v.toUpperCase() : v
+    scheduleSearch(normalized)
   }
 
   const selectItem = (stock: Stock) => {
@@ -95,11 +118,13 @@ export function TickerCombobox({ value, onChange, placeholder = 'AAPL', classNam
         type="text"
         value={query}
         onChange={handleInputChange}
+        onCompositionStart={handleCompositionStart}
+        onCompositionEnd={handleCompositionEnd}
         onKeyDown={handleKeyDown}
         onFocus={() => { if (results.length > 0) setOpen(true) }}
         placeholder={placeholder}
         className={cn(
-          'flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm uppercase ring-offset-background placeholder:text-muted-foreground/40 placeholder:normal-case focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50',
+          'flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground/40 placeholder:normal-case focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50',
           className,
         )}
         autoComplete="off"
@@ -131,4 +156,3 @@ export function TickerCombobox({ value, onChange, placeholder = 'AAPL', classNam
     </div>
   )
 }
-

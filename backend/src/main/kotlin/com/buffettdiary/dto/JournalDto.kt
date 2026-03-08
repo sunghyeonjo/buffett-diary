@@ -23,7 +23,6 @@ data class JournalResponse(
     val images: List<JournalImageResponse> = emptyList(),
     val author: AuthorSummary? = null,
     val likeCount: Long = 0,
-    val dislikeCount: Long = 0,
     val myLike: Boolean? = null,
     val commentCount: Long = 0,
 ) : Serializable {

@@ -23,7 +23,6 @@ export interface Journal {
   images: JournalImageMeta[]
   author?: AuthorSummary
   likeCount: number
-  dislikeCount: number
   myLike: boolean | null
   commentCount: number
 }

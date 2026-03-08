@@ -26,4 +26,17 @@ data class UserSearchResponse(
 
 data class UpdateProfileRequest(
     @field:Size(max = 200) val bio: String? = null,
+    @field:Size(min = 2, max = 20) val nickname: String? = null,
+)
+
+data class NotificationSettingResponse(
+    val followNotify: Boolean,
+    val commentNotify: Boolean,
+    val likeNotify: Boolean,
+)
+
+data class UpdateNotificationSettingRequest(
+    val followNotify: Boolean? = null,
+    val commentNotify: Boolean? = null,
+    val likeNotify: Boolean? = null,
 )

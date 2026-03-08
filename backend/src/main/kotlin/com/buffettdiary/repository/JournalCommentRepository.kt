@@ -19,4 +19,7 @@ interface JournalCommentRepository : JpaRepository<JournalComment, Long> {
 
     @Modifying
     fun deleteByJournalId(journalId: Long)
+
+    @Modifying
+    fun deleteByUserId(userId: Long)
 }

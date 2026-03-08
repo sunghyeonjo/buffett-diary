@@ -61,7 +61,6 @@ class TradeService(
                     images = imagesMap[it.id] ?: emptyList(),
                     commentCount = commentCounts[it.id] ?: 0,
                     likeCount = likeStats[it.id]?.likeCount ?: 0,
-                    dislikeCount = likeStats[it.id]?.dislikeCount ?: 0,
                     myLike = myLikes[it.id]?.liked,
                     stockInfo = stockMap[it.ticker]?.let { s -> StockSummary(s.nameKo, s.logoUrl) },
                 )
@@ -82,10 +81,9 @@ class TradeService(
         val images = tradeImageService.getImageMetas(id, userId)
         val commentCount = tradeCommentRepository.countByTradeId(id)
         val likeCount = tradeRatingRepository.countByTradeIdAndLiked(id, true)
-        val dislikeCount = tradeRatingRepository.countByTradeIdAndLiked(id, false)
         val myLike = tradeRatingRepository.findByTradeIdAndUserId(id, userId)?.liked
         val stockInfo = stockRepository.findByTicker(trade.ticker)?.let { StockSummary(it.nameKo, it.logoUrl) }
-        return trade.toResponse(images, commentCount, likeCount, dislikeCount, myLike, stockInfo)
+        return trade.toResponse(images, commentCount, likeCount, myLike = myLike, stockInfo = stockInfo)
     }
 
     @Transactional
@@ -196,9 +194,8 @@ class TradeService(
 
         val commentCount = tradeCommentRepository.countByTradeId(id)
         val likeCount = tradeRatingRepository.countByTradeIdAndLiked(id, true)
-        val dislikeCount = tradeRatingRepository.countByTradeIdAndLiked(id, false)
         val stockInfo = stockRepository.findByTicker(trade.ticker)?.let { StockSummary(it.nameKo, it.logoUrl) }
-        return trade.toResponse(commentCount = commentCount, likeCount = likeCount, dislikeCount = dislikeCount, myLike = request.liked, stockInfo = stockInfo)
+        return trade.toResponse(commentCount = commentCount, likeCount = likeCount, myLike = request.liked, stockInfo = stockInfo)
     }
 
     private fun buildTrade(userId: Long, request: TradeRequest): Trade {
@@ -219,7 +216,6 @@ class TradeService(
         images: List<TradeImageResponse> = emptyList(),
         commentCount: Long = 0,
         likeCount: Long = 0,
-        dislikeCount: Long = 0,
         myLike: Boolean? = null,
         stockInfo: StockSummary? = null,
     ) = TradeResponse(
@@ -234,7 +230,6 @@ class TradeService(
         profit = profit,
         reason = reason,
         likeCount = likeCount,
-        dislikeCount = dislikeCount,
         myLike = myLike,
         commentCount = commentCount,
         createdAt = createdAt.toString(),

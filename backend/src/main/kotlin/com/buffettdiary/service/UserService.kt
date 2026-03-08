@@ -1,11 +1,11 @@
 package com.buffettdiary.service
 
 import com.buffettdiary.dto.*
+import com.buffettdiary.entity.NotificationSetting
+import com.buffettdiary.exception.ConflictException
 import com.buffettdiary.exception.ForbiddenException
 import com.buffettdiary.exception.NotFoundException
-import com.buffettdiary.repository.JournalRepository
-import com.buffettdiary.repository.TradeRepository
-import com.buffettdiary.repository.UserRepository
+import com.buffettdiary.repository.*
 import org.springframework.cache.annotation.CacheEvict
 import org.springframework.cache.annotation.Cacheable
 import org.springframework.data.domain.PageRequest
@@ -22,6 +22,13 @@ class UserService(
     private val tradeImageService: TradeImageService,
     private val journalRepository: JournalRepository,
     private val tradeRepository: TradeRepository,
+    private val followRepository: FollowRepository,
+    private val tradeCommentRepository: TradeCommentRepository,
+    private val journalCommentRepository: JournalCommentRepository,
+    private val tradeRatingRepository: TradeRatingRepository,
+    private val journalRatingRepository: JournalRatingRepository,
+    private val refreshTokenRepository: RefreshTokenRepository,
+    private val notificationSettingRepository: NotificationSettingRepository,
 ) {
     @Transactional(readOnly = true)
     @Cacheable(value = ["userProfile"], key = "#requestingUserId + '-' + #targetUserId")
@@ -59,8 +66,71 @@ class UserService(
     fun updateProfile(userId: Long, request: UpdateProfileRequest) {
         val user = userRepository.findById(userId)
             .orElseThrow { NotFoundException("User not found") }
+        if (request.nickname != null && request.nickname != user.nickname) {
+            if (userRepository.existsByNickname(request.nickname)) {
+                throw ConflictException("이미 사용 중인 닉네임입니다")
+            }
+            user.nickname = request.nickname
+        }
         user.bio = request.bio
         userRepository.save(user)
+    }
+
+    @Transactional
+    @CacheEvict(value = ["userProfile", "trades", "tradeDetail", "tradeStats", "journals", "journalDetail", "followCounts"], allEntries = true)
+    fun deleteAccount(userId: Long) {
+        val user = userRepository.findById(userId)
+            .orElseThrow { NotFoundException("User not found") }
+
+        // Delete user's own trades and journals (handles images/comments/ratings per entity)
+        val trades = tradeRepository.findByUserId(userId)
+        trades.forEach { tradeService.delete(userId, it.id) }
+        val journals = journalRepository.findByUserIdOrderByJournalDateDescCreatedAtDesc(userId, PageRequest.of(0, Int.MAX_VALUE))
+        journals.content.forEach { journalService.delete(userId, it.id) }
+
+        // Delete comments/ratings left on other users' content
+        tradeCommentRepository.deleteByUserId(userId)
+        journalCommentRepository.deleteByUserId(userId)
+        tradeRatingRepository.deleteByUserId(userId)
+        journalRatingRepository.deleteByUserId(userId)
+
+        // Delete follow relationships
+        followRepository.deleteByFollowerIdOrFollowingId(userId, userId)
+
+        // Delete notification settings
+        notificationSettingRepository.deleteByUserId(userId)
+
+        // Delete refresh tokens
+        refreshTokenRepository.deleteByUserId(userId)
+
+        // Delete user
+        userRepository.delete(user)
+    }
+
+    @Transactional(readOnly = true)
+    fun getNotificationSettings(userId: Long): NotificationSettingResponse {
+        val setting = notificationSettingRepository.findByUserId(userId)
+            ?: return NotificationSettingResponse(followNotify = true, commentNotify = true, likeNotify = true)
+        return NotificationSettingResponse(
+            followNotify = setting.followNotify,
+            commentNotify = setting.commentNotify,
+            likeNotify = setting.likeNotify,
+        )
+    }
+
+    @Transactional
+    fun updateNotificationSettings(userId: Long, request: UpdateNotificationSettingRequest): NotificationSettingResponse {
+        val setting = notificationSettingRepository.findByUserId(userId)
+            ?: NotificationSetting(userId = userId)
+        request.followNotify?.let { setting.followNotify = it }
+        request.commentNotify?.let { setting.commentNotify = it }
+        request.likeNotify?.let { setting.likeNotify = it }
+        notificationSettingRepository.save(setting)
+        return NotificationSettingResponse(
+            followNotify = setting.followNotify,
+            commentNotify = setting.commentNotify,
+            likeNotify = setting.likeNotify,
+        )
     }
 
     @Transactional(readOnly = true)

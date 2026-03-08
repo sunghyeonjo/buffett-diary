@@ -6,7 +6,7 @@ import { tradesApi, tradeImagesApi, tradeLikeApi } from '@/api/trades'
 import { formatDate } from '@/lib/date'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Plus, Pencil, Trash2, ImageIcon, X, Download, ChevronLeft, ChevronRight, List, MessageSquare, ThumbsUp, ThumbsDown, Loader2 } from 'lucide-react'
+import { Plus, Pencil, Trash2, ImageIcon, X, Download, ChevronLeft, ChevronRight, List, MessageSquare, ThumbsUp, Loader2 } from 'lucide-react'
 import { TabFilter } from '@/components/ui/tab-filter'
 import { TickerCombobox } from '@/components/TickerCombobox'
 import TradeFormModal from '@/components/TradeFormModal'
@@ -310,18 +310,6 @@ function TradeDetailPanel({ trade, onClose, onSaved, onTradeUpdated }: { trade: 
                     <ThumbsUp className="h-4 w-4" />
                     <span className="tabular-nums">{trade.likeCount}</span>
                   </button>
-                  <button
-                    type="button"
-                    className={`flex items-center gap-1 rounded-full border px-3 py-1.5 text-sm transition-colors ${
-                      trade.myLike === false
-                        ? 'border-blue-300 bg-blue-50 text-blue-600'
-                        : 'text-muted-foreground hover:text-foreground'
-                    }`}
-                    onClick={() => handleLike(false)}
-                  >
-                    <ThumbsDown className="h-4 w-4" />
-                    <span className="tabular-nums">{trade.dislikeCount}</span>
-                  </button>
                 </div>
               </div>
 
@@ -530,7 +518,7 @@ export default function TradeListPage() {
               {/* Trades */}
               <div className="divide-y rounded-xl border">
                 {group.trades.map((trade) => {
-                  const hasSocial = trade.likeCount > 0 || trade.dislikeCount > 0 || trade.commentCount > 0
+                  const hasSocial = trade.likeCount > 0 || trade.commentCount > 0
                   return (
                     <div
                       key={trade.id}
@@ -588,12 +576,6 @@ export default function TradeListPage() {
                                 <span className="flex items-center gap-0.5 text-red-500">
                                   <ThumbsUp className="h-3 w-3" />
                                   {trade.likeCount}
-                                </span>
-                              )}
-                              {trade.dislikeCount > 0 && (
-                                <span className="flex items-center gap-0.5 text-blue-500">
-                                  <ThumbsDown className="h-3 w-3" />
-                                  {trade.dislikeCount}
                                 </span>
                               )}
                               {trade.commentCount > 0 && (

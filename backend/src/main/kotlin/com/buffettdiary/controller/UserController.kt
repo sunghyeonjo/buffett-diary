@@ -35,6 +35,25 @@ class UserController(
         return ResponseEntity.ok().build()
     }
 
+    @DeleteMapping("/me")
+    fun deleteAccount(auth: Authentication): ResponseEntity<Void> {
+        userService.deleteAccount(userId(auth))
+        return ResponseEntity.noContent().build()
+    }
+
+    @GetMapping("/me/notification-settings")
+    fun getNotificationSettings(auth: Authentication): ResponseEntity<NotificationSettingResponse> {
+        return ResponseEntity.ok(userService.getNotificationSettings(userId(auth)))
+    }
+
+    @PutMapping("/me/notification-settings")
+    fun updateNotificationSettings(
+        auth: Authentication,
+        @RequestBody request: UpdateNotificationSettingRequest,
+    ): ResponseEntity<NotificationSettingResponse> {
+        return ResponseEntity.ok(userService.updateNotificationSettings(userId(auth), request))
+    }
+
     @GetMapping("/{targetId}/journals")
     fun userJournals(
         auth: Authentication,

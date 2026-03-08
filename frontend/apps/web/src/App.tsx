@@ -6,10 +6,9 @@ import Layout from '@/components/Layout'
 import LoginPage from '@/pages/LoginPage'
 import RegisterPage from '@/pages/RegisterPage'
 import OAuthCallbackPage from '@/pages/OAuthCallbackPage'
-import HomePage from '@/pages/HomePage'
+import FeedPage from '@/pages/FeedPage'
 import TradeListPage from '@/pages/TradeListPage'
 import JournalListPage from '@/pages/JournalListPage'
-import UserSearchPage from '@/pages/UserSearchPage'
 import UserProfilePage from '@/pages/UserProfilePage'
 import MyPage from '@/pages/MyPage'
 
@@ -35,11 +34,10 @@ export default function App() {
                 </ProtectedRoute>
               }
             >
-              <Route path="/" element={<HomePage />} />
+              <Route path="/" element={<FeedPage />} />
               <Route path="/trades" element={<TradeListPage />} />
               <Route path="/journals" element={<JournalListPage />} />
               <Route path="/mypage" element={<MyPage />} />
-              <Route path="/search" element={<UserSearchPage />} />
               <Route path="/users/:userId" element={<UserProfilePage />} />
             </Route>
           </Routes>

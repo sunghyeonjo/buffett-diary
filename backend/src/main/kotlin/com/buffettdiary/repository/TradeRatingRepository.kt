@@ -10,15 +10,17 @@ interface TradeRatingRepository : JpaRepository<TradeRating, Long> {
     fun findByTradeIdInAndUserId(tradeIds: List<Long>, userId: Long): List<TradeRating>
     fun countByTradeIdAndLiked(tradeId: Long, liked: Boolean): Long
 
-    @Query("SELECT r.tradeId AS tradeId, SUM(CASE WHEN r.liked = true THEN 1 ELSE 0 END) AS likeCount, SUM(CASE WHEN r.liked = false THEN 1 ELSE 0 END) AS dislikeCount FROM TradeRating r WHERE r.tradeId IN :tradeIds GROUP BY r.tradeId")
+    @Query("SELECT r.tradeId AS tradeId, SUM(CASE WHEN r.liked = true THEN 1 ELSE 0 END) AS likeCount FROM TradeRating r WHERE r.tradeId IN :tradeIds GROUP BY r.tradeId")
     fun findLikeCountsByTradeIds(tradeIds: List<Long>): List<TradeLikeProjection>
 
     @Modifying
     fun deleteByTradeId(tradeId: Long)
+
+    @Modifying
+    fun deleteByUserId(userId: Long)
 }
 
 interface TradeLikeProjection {
     val tradeId: Long
     val likeCount: Long
-    val dislikeCount: Long
 }

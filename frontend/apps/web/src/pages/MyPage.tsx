@@ -1,31 +1,35 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import type { Journal, Trade, FollowUser } from '@buffett-diary/shared'
+import type { FollowUser, TradeStats } from '@buffett-diary/shared'
 import { useAuth } from '@/contexts/AuthContext'
 import { usersApi } from '@/api/users'
 import { followsApi } from '@/api/follows'
-import { journalImagesApi } from '@/api/journals'
-import { tradeImagesApi } from '@/api/trades'
+import { tradesApi } from '@/api/trades'
 import { formatDate } from '@/lib/date'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { TickerLogo } from '@/components/StockLogo'
-import { ImageIcon, Settings, Grid3x3, BookOpen, X, LogOut, ChevronLeft, ChevronRight, ThumbsUp, ThumbsDown } from 'lucide-react'
+import { Card, CardContent } from '@/components/ui/card'
+import { TabFilter } from '@/components/ui/tab-filter'
+import { Settings, LogOut, TrendingUp, BarChart3, Mail, Calendar, X, Bell } from 'lucide-react'
 import EditProfileModal from '@/components/EditProfileModal'
-import TradeCommentSection from '@/components/TradeCommentSection'
 
-type Tab = 'journals' | 'trades'
+type StatsPeriod = 'week' | 'month' | 'year' | 'all'
+
+const periodOptions: { value: StatsPeriod; label: string }[] = [
+  { value: 'week', label: '이번 주' },
+  { value: 'month', label: '이번 달' },
+  { value: 'year', label: '올해' },
+  { value: 'all', label: '전체' },
+]
 
 export default function MyPage() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const [tab, setTab] = useState<Tab>('journals')
   const [editingProfile, setEditingProfile] = useState(false)
   const [followModal, setFollowModal] = useState<'followers' | 'following' | null>(null)
-  const [selectedJournal, setSelectedJournal] = useState<Journal | null>(null)
-  const [selectedTrade, setSelectedTrade] = useState<Trade | null>(null)
+  const [period, setPeriod] = useState<StatsPeriod>('month')
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
   const userId = user?.id ?? 0
 
@@ -35,21 +39,42 @@ export default function MyPage() {
     enabled: userId > 0,
   })
 
-  const { data: journals } = useQuery({
-    queryKey: ['userJournals', userId],
-    queryFn: () => usersApi.journals(userId).then((r) => r.data),
-    enabled: userId > 0 && tab === 'journals',
+  const { data: stats, isLoading: statsLoading } = useQuery({
+    queryKey: ['tradeStats', period],
+    queryFn: () => tradesApi.stats(period).then((r) => r.data),
   })
 
-  const { data: trades } = useQuery({
-    queryKey: ['userTrades', userId],
-    queryFn: () => usersApi.trades(userId).then((r) => r.data),
-    enabled: userId > 0 && tab === 'trades',
+  const { data: notifSettings } = useQuery({
+    queryKey: ['notificationSettings'],
+    queryFn: () => usersApi.getNotificationSettings().then((r) => r.data),
+  })
+
+  const notifMutation = useMutation({
+    mutationFn: (data: { followNotify?: boolean; commentNotify?: boolean; likeNotify?: boolean }) =>
+      usersApi.updateNotificationSettings(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notificationSettings'] })
+    },
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: () => usersApi.deleteAccount(),
+    onSuccess: () => logout(),
   })
 
   if (!user) return null
 
   const initial = user.nickname.charAt(0).toUpperCase()
+
+  const profitColor = (v: number) =>
+    v > 0 ? 'text-red-600' : v < 0 ? 'text-blue-600' : 'text-muted-foreground'
+
+  const formatMoney = (v: number) => {
+    const sign = v > 0 ? '+' : v < 0 ? '-' : ''
+    return `${sign}$${Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  }
+
+  const hasTrades = stats && stats.totalTrades > 0
 
   return (
     <div className="mx-auto max-w-2xl">
@@ -75,10 +100,6 @@ export default function MyPage() {
 
           {/* Stats — clickable counts */}
           <div className="mt-3 flex gap-5 text-sm">
-            <span>
-              <strong>{journals?.totalElements ?? 0}</strong>
-              <span className="ml-1 text-muted-foreground">게시물</span>
-            </span>
             <button className="hover:opacity-70" onClick={() => setFollowModal('followers')}>
               <strong>{profile?.followerCount ?? 0}</strong>
               <span className="ml-1 text-muted-foreground">팔로워</span>
@@ -96,37 +117,148 @@ export default function MyPage() {
         </div>
       </div>
 
-      {/* Tab bar */}
-      <div className="flex border-y">
-        {([
-          { key: 'journals' as const, icon: Grid3x3, label: '투자일지' },
-          { key: 'trades' as const, icon: BookOpen, label: '매매 내역' },
-        ]).map(({ key, icon: Icon, label }) => (
-          <button
-            key={key}
-            onClick={() => setTab(key)}
-            className={`flex flex-1 items-center justify-center gap-1.5 py-3 text-xs font-semibold uppercase tracking-wider transition-colors ${
-              tab === key
-                ? 'border-t-2 border-foreground text-foreground -mt-px'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <Icon className="h-4 w-4" />
-            <span className="hidden sm:inline">{label}</span>
-          </button>
-        ))}
-      </div>
+      {/* 투자 성과 섹션 */}
+      <section className="mt-4">
+        <div className="flex items-center justify-between">
+          <h2 className="flex items-center gap-1.5 text-sm font-semibold">
+            <TrendingUp className="h-4 w-4" />
+            투자 성과
+          </h2>
+          <TabFilter options={periodOptions} value={period} onChange={setPeriod} />
+        </div>
 
-      {/* Content */}
-      <div className="py-1">
-        {tab === 'journals' && <JournalCardList journals={journals?.content ?? []} onSelect={setSelectedJournal} />}
-        {tab === 'trades' && <TradeCardList trades={trades?.content ?? []} onSelect={setSelectedTrade} />}
-      </div>
+        {statsLoading ? (
+          <div className="py-12 text-center text-sm text-muted-foreground">불러오는 중...</div>
+        ) : !hasTrades ? (
+          <div className="py-12 text-center">
+            <BarChart3 className="mx-auto h-10 w-10 text-muted-foreground/30" />
+            <p className="mt-3 text-muted-foreground">아직 매매 내역이 없습니다</p>
+            <Button variant="outline" size="sm" className="mt-3" onClick={() => navigate('/trades')}>
+              매매 기록하기
+            </Button>
+          </div>
+        ) : (
+          <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <Card>
+              <CardContent className="p-4">
+                <p className="text-xs text-muted-foreground">총 수익</p>
+                <p className={`mt-1 text-xl font-bold tabular-nums ${profitColor(stats.totalProfit)}`}>
+                  {formatMoney(stats.totalProfit)}
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <p className="text-xs text-muted-foreground">승률</p>
+                <p className="mt-1 text-xl font-bold tabular-nums">
+                  {stats.winRate.toFixed(1)}%
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <p className="text-xs text-muted-foreground">총 매매</p>
+                <p className="mt-1 text-xl font-bold tabular-nums">{stats.totalTrades}</p>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">
+                  매수 {stats.buyCount} · 매도 {stats.sellCount}
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <p className="text-xs text-muted-foreground">평균 수익</p>
+                <p className={`mt-1 text-xl font-bold tabular-nums ${profitColor(stats.averageProfit)}`}>
+                  {formatMoney(stats.averageProfit)}
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <p className="text-xs text-muted-foreground">최고 수익</p>
+                <p className={`mt-1 text-xl font-bold tabular-nums ${profitColor(stats.bestTrade)}`}>
+                  {formatMoney(stats.bestTrade)}
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <p className="text-xs text-muted-foreground">최대 손실</p>
+                <p className={`mt-1 text-xl font-bold tabular-nums ${profitColor(stats.worstTrade)}`}>
+                  {formatMoney(stats.worstTrade)}
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+      </section>
+
+      {/* 알림 설정 섹션 */}
+      <section className="mt-8 space-y-3 border-t pt-6">
+        <h2 className="flex items-center gap-1.5 text-sm font-semibold">
+          <Bell className="h-4 w-4" />
+          알림 설정
+        </h2>
+        <p className="text-xs text-muted-foreground">(알림 기능 준비 중)</p>
+        <div className="space-y-2">
+          {([
+            { key: 'followNotify' as const, label: '팔로우 알림' },
+            { key: 'commentNotify' as const, label: '댓글 알림' },
+            { key: 'likeNotify' as const, label: '좋아요 알림' },
+          ]).map(({ key, label }) => (
+            <label key={key} className="flex items-center justify-between py-1">
+              <span className="text-sm">{label}</span>
+              <input
+                type="checkbox"
+                checked={notifSettings?.[key] ?? true}
+                onChange={(e) => notifMutation.mutate({ [key]: e.target.checked })}
+                className="h-4 w-4 rounded border-gray-300"
+              />
+            </label>
+          ))}
+        </div>
+      </section>
+
+      {/* 계정 정보 섹션 */}
+      <section className="mt-8 space-y-3 border-t pt-6">
+        <h2 className="text-sm font-semibold">계정 정보</h2>
+        <div className="space-y-2 text-sm">
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <Mail className="h-4 w-4 shrink-0" />
+            <span>{user.email}</span>
+          </div>
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <Calendar className="h-4 w-4 shrink-0" />
+            <span>{formatDate(user.createdAt)} 가입</span>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" className="hidden md:inline-flex" onClick={logout}>
+            <LogOut className="mr-1.5 h-3.5 w-3.5" />
+            로그아웃
+          </Button>
+          {!confirmDelete ? (
+            <Button variant="ghost" size="sm" className="text-destructive" onClick={() => setConfirmDelete(true)}>
+              회원 탈퇴
+            </Button>
+          ) : (
+            <div className="flex items-center gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2">
+              <span className="text-xs text-destructive">정말 탈퇴하시겠습니까? 모든 데이터가 삭제됩니다.</span>
+              <Button variant="destructive" size="sm" className="h-7 text-xs" onClick={() => deleteMutation.mutate()} disabled={deleteMutation.isPending}>
+                {deleteMutation.isPending ? '처리 중...' : '확인'}
+              </Button>
+              <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setConfirmDelete(false)}>
+                취소
+              </Button>
+            </div>
+          )}
+        </div>
+      </section>
 
       {/* Modals */}
       {editingProfile && (
         <EditProfileModal
           currentBio={profile?.bio ?? null}
+          currentNickname={user.nickname}
           onClose={() => {
             setEditingProfile(false)
             queryClient.invalidateQueries({ queryKey: ['userProfile', userId] })
@@ -145,422 +277,7 @@ export default function MyPage() {
           }}
         />
       )}
-
-      {selectedJournal && (
-        <JournalDetailModal
-          journal={selectedJournal}
-          onClose={() => setSelectedJournal(null)}
-        />
-      )}
-
-      {selectedTrade && (
-        <TradeDetailModal
-          trade={selectedTrade}
-          onClose={() => setSelectedTrade(null)}
-        />
-      )}
     </div>
-  )
-}
-
-// --- Journal Card List ---
-function JournalCardList({ journals, onSelect }: { journals: Journal[]; onSelect: (j: Journal) => void }) {
-  const navigate = useNavigate()
-
-  if (!journals.length) {
-    return (
-      <div className="py-16 text-center">
-        <Grid3x3 className="mx-auto h-10 w-10 text-muted-foreground/30" />
-        <p className="mt-3 text-muted-foreground">아직 투자일지가 없습니다</p>
-        <Button variant="outline" size="sm" className="mt-3" onClick={() => navigate('/journals')}>
-          일지 작성하기
-        </Button>
-      </div>
-    )
-  }
-
-  return (
-    <div className="divide-y">
-      {journals.map((journal) => (
-        <JournalCard key={journal.id} journal={journal} onClick={() => onSelect(journal)} />
-      ))}
-    </div>
-  )
-}
-
-function JournalCard({ journal, onClick }: { journal: Journal; onClick: () => void }) {
-  const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (!journal.images.length) return
-    let revoked = false
-    journalImagesApi.fetchBlob(journal.id, journal.images[0].id).then(({ data: blob }) => {
-      if (!revoked) setThumbnailUrl(URL.createObjectURL(blob))
-    }).catch(() => {})
-    return () => {
-      revoked = true
-      if (thumbnailUrl) URL.revokeObjectURL(thumbnailUrl)
-    }
-  }, [journal.id, journal.images]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  return (
-    <button
-      className="flex w-full gap-3 px-1 py-3 text-left transition-colors hover:bg-muted/30"
-      onClick={onClick}
-    >
-      {/* Thumbnail */}
-      {thumbnailUrl && (
-        <div className="h-14 w-14 shrink-0 overflow-hidden rounded-md">
-          <img src={thumbnailUrl} alt="" className="h-full w-full object-cover" />
-        </div>
-      )}
-
-      {/* Text */}
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center justify-between gap-2">
-          <h3 className="text-sm font-semibold truncate">{journal.title}</h3>
-          <span className="shrink-0 text-[11px] text-muted-foreground">{formatDate(journal.journalDate)}</span>
-        </div>
-        <p className="mt-0.5 text-xs text-muted-foreground line-clamp-1">{journal.content}</p>
-        {journal.images.length > 0 && !thumbnailUrl && (
-          <div className="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground">
-            <ImageIcon className="h-3 w-3" />
-            {journal.images.length}
-          </div>
-        )}
-      </div>
-    </button>
-  )
-}
-
-// --- Journal Detail Modal ---
-function JournalDetailModal({ journal, onClose }: { journal: Journal; onClose: () => void }) {
-  const [imageUrls, setImageUrls] = useState<string[]>([])
-  const [currentImage, setCurrentImage] = useState(0)
-
-  useEffect(() => {
-    if (!journal.images.length) return
-    const urls: string[] = []
-    let cancelled = false
-
-    Promise.all(
-      journal.images.map((img) =>
-        journalImagesApi.fetchBlob(journal.id, img.id).then(({ data: blob }) => URL.createObjectURL(blob))
-      )
-    ).then((results) => {
-      if (!cancelled) {
-        urls.push(...results)
-        setImageUrls(results)
-      }
-    }).catch(() => {})
-
-    return () => {
-      cancelled = true
-      urls.forEach((u) => URL.revokeObjectURL(u))
-    }
-  }, [journal.id, journal.images])
-
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-      if (e.key === 'ArrowLeft') setCurrentImage((i) => Math.max(0, i - 1))
-      if (e.key === 'ArrowRight') setCurrentImage((i) => Math.min(imageUrls.length - 1, i + 1))
-    }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
-  }, [onClose, imageUrls.length])
-
-  return (
-    <>
-      <div className="fixed inset-0 z-40 bg-black/50" onClick={onClose} />
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div
-          className="w-full max-w-lg max-h-[85vh] overflow-hidden rounded-xl border bg-background shadow-xl flex flex-col"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {/* Header */}
-          <div className="flex items-center justify-between border-b px-4 py-3 shrink-0">
-            <div className="min-w-0">
-              <h2 className="text-sm font-semibold truncate">{journal.title}</h2>
-              <p className="text-xs text-muted-foreground">{formatDate(journal.journalDate)}</p>
-            </div>
-            <button onClick={onClose} className="rounded-md p-1 hover:bg-muted ml-2 shrink-0">
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-
-          {/* Scrollable body */}
-          <div className="flex-1 overflow-y-auto">
-            {/* Image carousel */}
-            {imageUrls.length > 0 && (
-              <div className="relative bg-muted">
-                <img
-                  src={imageUrls[currentImage]}
-                  alt=""
-                  className="w-full max-h-80 object-contain"
-                />
-                {imageUrls.length > 1 && (
-                  <>
-                    {currentImage > 0 && (
-                      <button
-                        className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-black/50 p-1.5 text-white hover:bg-black/70"
-                        onClick={() => setCurrentImage((i) => i - 1)}
-                      >
-                        <ChevronLeft className="h-4 w-4" />
-                      </button>
-                    )}
-                    {currentImage < imageUrls.length - 1 && (
-                      <button
-                        className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-black/50 p-1.5 text-white hover:bg-black/70"
-                        onClick={() => setCurrentImage((i) => i + 1)}
-                      >
-                        <ChevronRight className="h-4 w-4" />
-                      </button>
-                    )}
-                    <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
-                      {imageUrls.map((_, i) => (
-                        <div
-                          key={i}
-                          className={`h-1.5 w-1.5 rounded-full ${i === currentImage ? 'bg-white' : 'bg-white/40'}`}
-                        />
-                      ))}
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
-
-            {/* Content */}
-            <div className="p-4">
-              <p className="text-sm whitespace-pre-wrap leading-relaxed">{journal.content}</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    </>
-  )
-}
-
-// --- Trade Card List ---
-function TradeCardList({ trades, onSelect }: { trades: Trade[]; onSelect: (t: Trade) => void }) {
-  const navigate = useNavigate()
-
-  if (!trades.length) {
-    return (
-      <div className="py-16 text-center">
-        <BookOpen className="mx-auto h-10 w-10 text-muted-foreground/30" />
-        <p className="mt-3 text-muted-foreground">아직 매매 내역이 없습니다</p>
-        <Button variant="outline" size="sm" className="mt-3" onClick={() => navigate('/trades')}>
-          매매 기록하기
-        </Button>
-      </div>
-    )
-  }
-
-  return (
-    <div className="divide-y">
-      {trades.map((trade) => (
-        <button
-          key={trade.id}
-          className="flex w-full items-center gap-3 overflow-hidden px-1 py-3 text-left transition-colors hover:bg-muted/30"
-          onClick={() => onSelect(trade)}
-        >
-          <TickerLogo ticker={trade.ticker} stockInfo={trade.stockInfo} className="h-10 w-10 shrink-0" />
-          <div className="min-w-0 flex-1 overflow-hidden">
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-1.5 shrink-0">
-                <span className="font-mono text-sm font-semibold">{trade.ticker}</span>
-                <Badge
-                  variant="outline"
-                  className={`text-[10px] ${trade.position === 'BUY'
-                    ? 'border-red-300 bg-red-50 text-red-700'
-                    : 'border-blue-300 bg-blue-50 text-blue-700'}`}
-                >
-                  {trade.position === 'BUY' ? '매수' : '매도'}
-                </Badge>
-              </div>
-              <span className="text-[11px] text-muted-foreground shrink-0">{formatDate(trade.tradeDate)}</span>
-            </div>
-            <p className="mt-0.5 truncate text-xs text-muted-foreground">
-              {trade.reason || `${trade.quantity}주 · $${trade.entryPrice.toLocaleString('en-US', { minimumFractionDigits: 2 })}`}
-            </p>
-          </div>
-        </button>
-      ))}
-    </div>
-  )
-}
-
-// --- Trade Detail Modal ---
-function TradeDetailModal({ trade, onClose }: { trade: Trade; onClose: () => void }) {
-  const [imageUrls, setImageUrls] = useState<string[]>([])
-  const [currentImage, setCurrentImage] = useState(0)
-
-  useEffect(() => {
-    if (!trade.images.length) return
-    const urls: string[] = []
-    let cancelled = false
-
-    Promise.all(
-      trade.images.map((img) =>
-        tradeImagesApi.fetchBlob(trade.id, img.id).then(({ data: blob }) => URL.createObjectURL(blob))
-      )
-    ).then((results) => {
-      if (!cancelled) {
-        urls.push(...results)
-        setImageUrls(results)
-      }
-    }).catch(() => {})
-
-    return () => {
-      cancelled = true
-      urls.forEach((u) => URL.revokeObjectURL(u))
-    }
-  }, [trade.id, trade.images])
-
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-      if (e.key === 'ArrowLeft') setCurrentImage((i) => Math.max(0, i - 1))
-      if (e.key === 'ArrowRight') setCurrentImage((i) => Math.min(imageUrls.length - 1, i + 1))
-    }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
-  }, [onClose, imageUrls.length])
-
-  return (
-    <>
-      <div className="fixed inset-0 z-40 bg-black/50" onClick={onClose} />
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div
-          className="w-full max-w-lg max-h-[85vh] overflow-hidden rounded-xl border bg-background shadow-xl flex flex-col"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {/* Header */}
-          <div className="flex items-center justify-between border-b px-4 py-3 shrink-0">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <TickerLogo ticker={trade.ticker} stockInfo={trade.stockInfo} className="h-8 w-8 shrink-0" />
-              <div className="min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <h2 className="text-sm font-semibold">{trade.ticker}</h2>
-                  <Badge
-                    variant="outline"
-                    className={`text-[10px] ${trade.position === 'BUY'
-                      ? 'border-red-300 bg-red-50 text-red-700'
-                      : 'border-blue-300 bg-blue-50 text-blue-700'}`}
-                  >
-                    {trade.position === 'BUY' ? '매수' : '매도'}
-                  </Badge>
-                </div>
-                <p className="text-xs text-muted-foreground">{formatDate(trade.tradeDate)}</p>
-              </div>
-            </div>
-            <button onClick={onClose} className="rounded-md p-1 hover:bg-muted ml-2 shrink-0">
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-
-          {/* Scrollable body */}
-          <div className="flex-1 overflow-y-auto">
-            {/* Image carousel */}
-            {imageUrls.length > 0 && (
-              <div className="relative bg-muted">
-                <img
-                  src={imageUrls[currentImage]}
-                  alt=""
-                  className="w-full max-h-80 object-contain"
-                />
-                {imageUrls.length > 1 && (
-                  <>
-                    {currentImage > 0 && (
-                      <button
-                        className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-black/50 p-1.5 text-white hover:bg-black/70"
-                        onClick={() => setCurrentImage((i) => i - 1)}
-                      >
-                        <ChevronLeft className="h-4 w-4" />
-                      </button>
-                    )}
-                    {currentImage < imageUrls.length - 1 && (
-                      <button
-                        className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-black/50 p-1.5 text-white hover:bg-black/70"
-                        onClick={() => setCurrentImage((i) => i + 1)}
-                      >
-                        <ChevronRight className="h-4 w-4" />
-                      </button>
-                    )}
-                    <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
-                      {imageUrls.map((_, i) => (
-                        <div
-                          key={i}
-                          className={`h-1.5 w-1.5 rounded-full ${i === currentImage ? 'bg-white' : 'bg-white/40'}`}
-                        />
-                      ))}
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
-
-            {/* Trade details */}
-            <div className="p-4 space-y-4">
-              {/* P&L */}
-              {trade.profit != null && (
-                <div className="rounded-lg bg-muted/50 px-4 py-3 text-center">
-                  <p className="text-xs text-muted-foreground">손익</p>
-                  <p className={`text-2xl font-bold tabular-nums ${trade.profit > 0 ? 'text-red-600' : trade.profit < 0 ? 'text-blue-600' : 'text-muted-foreground'}`}>
-                    {trade.profit > 0 ? '+' : trade.profit < 0 ? '-' : ''}${Math.abs(trade.profit).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </p>
-                </div>
-              )}
-
-              {/* Info grid */}
-              <div className="grid grid-cols-2 gap-3 text-sm">
-                <div>
-                  <p className="text-xs text-muted-foreground">수량</p>
-                  <p className="font-medium">{trade.quantity}주</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">매입가</p>
-                  <p className="font-medium tabular-nums">${trade.entryPrice.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
-                </div>
-                {trade.exitPrice != null && (
-                  <div>
-                    <p className="text-xs text-muted-foreground">매도가</p>
-                    <p className="font-medium tabular-nums">${trade.exitPrice.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
-                  </div>
-                )}
-                {(trade.likeCount > 0 || trade.dislikeCount > 0) && (
-                  <div>
-                    <p className="text-xs text-muted-foreground">평가</p>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <span className="flex items-center gap-0.5 text-sm text-red-500">
-                        <ThumbsUp className="h-3.5 w-3.5" />
-                        {trade.likeCount}
-                      </span>
-                      <span className="flex items-center gap-0.5 text-sm text-blue-500">
-                        <ThumbsDown className="h-3.5 w-3.5" />
-                        {trade.dislikeCount}
-                      </span>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Reason */}
-              {trade.reason && (
-                <div>
-                  <p className="text-xs font-medium text-muted-foreground">매매 메모</p>
-                  <p className="mt-1 text-sm whitespace-pre-wrap leading-relaxed">{trade.reason}</p>
-                </div>
-              )}
-
-              {/* Comments */}
-              <TradeCommentSection tradeId={trade.id} canComment />
-            </div>
-          </div>
-        </div>
-      </div>
-    </>
   )
 }
 

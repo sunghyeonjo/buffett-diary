@@ -20,4 +20,7 @@ interface FollowRepository : JpaRepository<Follow, Long> {
 
     @Modifying
     fun deleteByFollowerIdAndFollowingId(followerId: Long, followingId: Long)
+
+    @Modifying
+    fun deleteByFollowerIdOrFollowingId(followerId: Long, followingId: Long)
 }

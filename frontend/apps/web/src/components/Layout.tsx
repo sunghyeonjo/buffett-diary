@@ -2,13 +2,12 @@ import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
-import { Home, BookOpen, FileText, Search, LogOut, User } from 'lucide-react'
+import { Rss, BookOpen, FileText, LogOut, User } from 'lucide-react'
 
 const navItems = [
-  { to: '/', label: '홈', icon: Home },
+  { to: '/', label: '피드', icon: Rss },
   { to: '/trades', label: '매매 내역', icon: BookOpen },
   { to: '/journals', label: '투자일지', icon: FileText },
-  { to: '/search', label: '탐색', icon: Search },
 ]
 
 export default function Layout() {

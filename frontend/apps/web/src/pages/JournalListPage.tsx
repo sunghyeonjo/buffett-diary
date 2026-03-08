@@ -6,7 +6,7 @@ import { journalsApi, journalImagesApi, journalLikeApi } from '@/api/journals'
 import { tradesApi } from '@/api/trades'
 import { formatDate } from '@/lib/date'
 import { Button } from '@/components/ui/button'
-import { Plus, Trash2, Pencil, X, Download, ChevronLeft, ChevronRight, ThumbsUp, ThumbsDown, MessageSquare, Loader2 } from 'lucide-react'
+import { Plus, Trash2, Pencil, X, Download, ChevronLeft, ChevronRight, ThumbsUp, MessageSquare, Loader2 } from 'lucide-react'
 import JournalFormModal from '@/components/JournalFormModal'
 import JournalCommentSection from '@/components/JournalCommentSection'
 
@@ -274,18 +274,6 @@ function JournalDetailPanel({
               >
                 <ThumbsUp className="h-4 w-4" />
                 <span className="tabular-nums">{journal.likeCount}</span>
-              </button>
-              <button
-                type="button"
-                className={`flex items-center gap-1 rounded-full border px-3 py-1.5 text-sm transition-colors ${
-                  journal.myLike === false
-                    ? 'border-blue-300 bg-blue-50 text-blue-600'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-                onClick={() => handleLike(false)}
-              >
-                <ThumbsDown className="h-4 w-4" />
-                <span className="tabular-nums">{journal.dislikeCount}</span>
               </button>
             </div>
           </div>

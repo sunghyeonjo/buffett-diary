@@ -25,6 +25,19 @@ export interface UserSearchResult {
 
 export interface UpdateProfileRequest {
   bio?: string | null
+  nickname?: string
+}
+
+export interface NotificationSetting {
+  followNotify: boolean
+  commentNotify: boolean
+  likeNotify: boolean
+}
+
+export interface UpdateNotificationSettingRequest {
+  followNotify?: boolean
+  commentNotify?: boolean
+  likeNotify?: boolean
 }
 
 export interface AuthResponse {

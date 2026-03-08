@@ -23,7 +23,6 @@ export interface Trade {
   profit: number | null
   reason: string | null
   likeCount: number
-  dislikeCount: number
   myLike: boolean | null
   commentCount: number
   createdAt: string

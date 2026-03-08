@@ -10,15 +10,17 @@ interface JournalRatingRepository : JpaRepository<JournalRating, Long> {
     fun findByJournalIdInAndUserId(journalIds: List<Long>, userId: Long): List<JournalRating>
     fun countByJournalIdAndLiked(journalId: Long, liked: Boolean): Long
 
-    @Query("SELECT r.journalId AS journalId, SUM(CASE WHEN r.liked = true THEN 1 ELSE 0 END) AS likeCount, SUM(CASE WHEN r.liked = false THEN 1 ELSE 0 END) AS dislikeCount FROM JournalRating r WHERE r.journalId IN :journalIds GROUP BY r.journalId")
+    @Query("SELECT r.journalId AS journalId, SUM(CASE WHEN r.liked = true THEN 1 ELSE 0 END) AS likeCount FROM JournalRating r WHERE r.journalId IN :journalIds GROUP BY r.journalId")
     fun findLikeCountsByJournalIds(journalIds: List<Long>): List<JournalLikeProjection>
 
     @Modifying
     fun deleteByJournalId(journalId: Long)
+
+    @Modifying
+    fun deleteByUserId(userId: Long)
 }
 
 interface JournalLikeProjection {
     val journalId: Long
     val likeCount: Long
-    val dislikeCount: Long
 }

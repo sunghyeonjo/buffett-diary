@@ -49,7 +49,6 @@ class JournalService(
                     images = imagesMap[it.id] ?: emptyList(),
                     commentCount = commentCounts[it.id] ?: 0,
                     likeCount = likeStats[it.id]?.likeCount ?: 0,
-                    dislikeCount = likeStats[it.id]?.dislikeCount ?: 0,
                     myLike = myLikes[it.id]?.liked,
                 )
             },
@@ -69,9 +68,8 @@ class JournalService(
         val images = journalImageService.getImageMetas(id, userId)
         val commentCount = journalCommentRepository.countByJournalId(id)
         val likeCount = journalRatingRepository.countByJournalIdAndLiked(id, true)
-        val dislikeCount = journalRatingRepository.countByJournalIdAndLiked(id, false)
         val myLike = journalRatingRepository.findByJournalIdAndUserId(id, userId)?.liked
-        return journal.toResponse(images, commentCount, likeCount, dislikeCount, myLike)
+        return journal.toResponse(images, commentCount, likeCount, myLike = myLike)
     }
 
     @Transactional
@@ -131,15 +129,13 @@ class JournalService(
 
         val commentCount = journalCommentRepository.countByJournalId(id)
         val likeCount = journalRatingRepository.countByJournalIdAndLiked(id, true)
-        val dislikeCount = journalRatingRepository.countByJournalIdAndLiked(id, false)
-        return journal.toResponse(commentCount = commentCount, likeCount = likeCount, dislikeCount = dislikeCount, myLike = request.liked)
+        return journal.toResponse(commentCount = commentCount, likeCount = likeCount, myLike = request.liked)
     }
 
     private fun Journal.toResponse(
         images: List<JournalImageResponse> = emptyList(),
         commentCount: Long = 0,
         likeCount: Long = 0,
-        dislikeCount: Long = 0,
         myLike: Boolean? = null,
     ) = JournalResponse(
         id = id,
@@ -151,7 +147,6 @@ class JournalService(
         updatedAt = updatedAt.toString(),
         images = images,
         likeCount = likeCount,
-        dislikeCount = dislikeCount,
         myLike = myLike,
         commentCount = commentCount,
     )

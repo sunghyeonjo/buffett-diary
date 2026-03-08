@@ -17,6 +17,9 @@ class Stock(
     @Column(name = "name_ko", length = 100)
     val nameKo: String? = null,
 
+    @Column(length = 100)
+    val chosung: String? = null,
+
     @Column(name = "logo_url", length = 255)
     val logoUrl: String? = null,
 

@@ -14,4 +14,7 @@ interface TradeCommentRepository : JpaRepository<TradeComment, Long> {
 
     @Modifying
     fun deleteByTradeId(tradeId: Long)
+
+    @Modifying
+    fun deleteByUserId(userId: Long)
 }

@@ -1,4 +1,4 @@
-import type { UserProfile, UserSearchResult, UpdateProfileRequest, PageResponse, Journal, Trade } from '@buffett-diary/shared'
+import type { UserProfile, UserSearchResult, UpdateProfileRequest, PageResponse, Journal, Trade, NotificationSetting, UpdateNotificationSettingRequest } from '@buffett-diary/shared'
 import client from './client'
 
 export const usersApi = {
@@ -10,6 +10,15 @@ export const usersApi = {
   },
   updateProfile(data: UpdateProfileRequest) {
     return client.put('/users/me/profile', data)
+  },
+  deleteAccount() {
+    return client.delete('/users/me')
+  },
+  getNotificationSettings() {
+    return client.get<NotificationSetting>('/users/me/notification-settings')
+  },
+  updateNotificationSettings(data: UpdateNotificationSettingRequest) {
+    return client.put<NotificationSetting>('/users/me/notification-settings', data)
   },
   journals(userId: number, page = 0, size = 20) {
     return client.get<PageResponse<Journal>>(`/users/${userId}/journals`, { params: { page, size } })
