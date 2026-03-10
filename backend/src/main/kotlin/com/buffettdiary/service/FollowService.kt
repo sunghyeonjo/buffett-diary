@@ -19,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional
 class FollowService(
     private val followRepository: FollowRepository,
     private val userRepository: UserRepository,
+    private val notificationService: NotificationService,
 ) {
     @Transactional
     @CacheEvict(value = ["followCounts", "userProfile"], allEntries = true)
@@ -29,6 +30,7 @@ class FollowService(
             throw ConflictException("Already following")
         }
         followRepository.save(Follow(followerId = userId, followingId = targetId))
+        notificationService.notifyFollow(userId, targetId)
     }
 
     @Transactional

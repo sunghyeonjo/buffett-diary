@@ -9,6 +9,7 @@ import com.buffettdiary.exception.NotFoundException
 import com.buffettdiary.repository.FollowRepository
 import com.buffettdiary.repository.TradeCommentRepository
 import com.buffettdiary.repository.TradeRepository
+import com.buffettdiary.enums.ReferenceType
 import com.buffettdiary.repository.UserRepository
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -19,6 +20,7 @@ class TradeCommentService(
     private val tradeRepository: TradeRepository,
     private val followRepository: FollowRepository,
     private val userRepository: UserRepository,
+    private val notificationService: NotificationService,
 ) {
     @Transactional(readOnly = true)
     fun getComments(tradeId: Long, requestingUserId: Long): List<TradeCommentResponse> {
@@ -42,6 +44,8 @@ class TradeCommentService(
         val comment = tradeCommentRepository.save(
             TradeComment(tradeId = tradeId, userId = userId, content = request.content)
         )
+        notificationService.notifyTradeComment(userId, trade.userId, tradeId)
+        notificationService.notifyMentions(userId, request.content, ReferenceType.TRADE, tradeId)
         val nickname = userRepository.findById(userId).orElseThrow { NotFoundException("User not found") }.nickname
         return comment.toResponse(nickname)
     }
@@ -60,6 +64,8 @@ class TradeCommentService(
         val reply = tradeCommentRepository.save(
             TradeComment(tradeId = tradeId, userId = userId, parentId = parentId, content = request.content)
         )
+        notificationService.notifyTradeComment(userId, trade.userId, tradeId)
+        notificationService.notifyMentions(userId, request.content, ReferenceType.TRADE, tradeId)
         val nickname = userRepository.findById(userId).orElseThrow { NotFoundException("User not found") }.nickname
         return reply.toResponse(nickname)
     }

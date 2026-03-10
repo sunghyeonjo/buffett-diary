@@ -5,6 +5,7 @@ import { tradeCommentsApi } from '@/api/trades'
 import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/button'
 import { Pencil, Trash2, CornerDownRight, MessageSquare } from 'lucide-react'
+import { renderWithMentions } from '@/lib/mention'
 
 export default function TradeCommentSection({ tradeId, canComment }: { tradeId: number; canComment: boolean }) {
   const { user } = useAuth()
@@ -95,7 +96,7 @@ export default function TradeCommentSection({ tradeId, canComment }: { tradeId: 
                 </div>
               </div>
             ) : (
-              <p className="mt-0.5 text-sm whitespace-pre-wrap leading-relaxed">{comment.content}</p>
+              <p className="mt-0.5 text-sm whitespace-pre-wrap leading-relaxed">{renderWithMentions(comment.content)}</p>
             )}
 
             {!isEditing && (
@@ -137,7 +138,7 @@ export default function TradeCommentSection({ tradeId, canComment }: { tradeId: 
               <textarea
                 value={replyContent}
                 onChange={(e) => setReplyContent(e.target.value)}
-                placeholder="답글을 작성하세요..."
+                placeholder="답글을 작성하세요... (@닉네임으로 멘션)"
                 maxLength={1000}
                 rows={2}
                 className="w-full resize-none rounded-md border bg-background px-2 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
@@ -176,7 +177,7 @@ export default function TradeCommentSection({ tradeId, canComment }: { tradeId: 
         <textarea
           value={newComment}
           onChange={(e) => setNewComment(e.target.value)}
-          placeholder="댓글을 작성하세요..."
+          placeholder="댓글을 작성하세요... (@닉네임으로 멘션)"
           maxLength={1000}
           rows={2}
           className="w-full resize-none rounded-md border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"

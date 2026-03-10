@@ -5,9 +5,11 @@ import com.buffettdiary.entity.Journal
 import com.buffettdiary.entity.JournalRating
 import com.buffettdiary.exception.ForbiddenException
 import com.buffettdiary.exception.NotFoundException
+import com.buffettdiary.entity.JournalTrade
 import com.buffettdiary.repository.JournalCommentRepository
 import com.buffettdiary.repository.JournalRatingRepository
 import com.buffettdiary.repository.JournalRepository
+import com.buffettdiary.repository.JournalTradeRepository
 import org.springframework.cache.annotation.CacheEvict
 import org.springframework.cache.annotation.Cacheable
 import org.springframework.data.domain.PageRequest
@@ -21,6 +23,9 @@ class JournalService(
     private val journalImageService: JournalImageService,
     private val journalCommentRepository: JournalCommentRepository,
     private val journalRatingRepository: JournalRatingRepository,
+    private val journalTradeRepository: JournalTradeRepository,
+    private val badgeService: BadgeService,
+    private val notificationService: NotificationService,
 ) {
     @Transactional(readOnly = true)
     @Cacheable(value = ["journals"], key = "#userId + '-' + #startDate + '-' + #endDate + '-' + #page + '-' + #size")
@@ -43,6 +48,12 @@ class JournalService(
             journalRatingRepository.findByJournalIdInAndUserId(journalIds, userId).associateBy { it.journalId }
         } else emptyMap()
 
+        val linkedTradesMap = if (journalIds.isNotEmpty()) {
+            journalTradeRepository.findByJournalIdIn(journalIds)
+                .groupBy { it.journalId }
+                .mapValues { (_, v) -> v.map { it.tradeId } }
+        } else emptyMap()
+
         return PageResponse(
             content = journals.map {
                 it.toResponse(
@@ -50,6 +61,7 @@ class JournalService(
                     commentCount = commentCounts[it.id] ?: 0,
                     likeCount = likeStats[it.id]?.likeCount ?: 0,
                     myLike = myLikes[it.id]?.liked,
+                    linkedTradeIds = linkedTradesMap[it.id] ?: emptyList(),
                 )
             },
             totalElements = result.totalElements,
@@ -69,7 +81,8 @@ class JournalService(
         val commentCount = journalCommentRepository.countByJournalId(id)
         val likeCount = journalRatingRepository.countByJournalIdAndLiked(id, true)
         val myLike = journalRatingRepository.findByJournalIdAndUserId(id, userId)?.liked
-        return journal.toResponse(images, commentCount, likeCount, myLike = myLike)
+        val linkedTradeIds = journalTradeRepository.findByJournalId(id).map { it.tradeId }
+        return journal.toResponse(images, commentCount, likeCount, myLike = myLike, linkedTradeIds = linkedTradeIds)
     }
 
     @Transactional
@@ -81,7 +94,13 @@ class JournalService(
             content = request.content,
             journalDate = request.journalDate,
         )
-        return journalRepository.save(journal).toResponse()
+        val saved = journalRepository.save(journal)
+        val tradeIds = request.tradeIds ?: emptyList()
+        if (tradeIds.isNotEmpty()) {
+            journalTradeRepository.saveAll(tradeIds.map { JournalTrade(journalId = saved.id, tradeId = it) })
+        }
+        badgeService.checkAndAwardJournalBadges(userId)
+        return saved.toResponse(linkedTradeIds = tradeIds)
     }
 
     @Transactional
@@ -94,7 +113,15 @@ class JournalService(
         journal.title = request.title
         journal.content = request.content
 
-        return journalRepository.save(journal).toResponse()
+        val saved = journalRepository.save(journal)
+        if (request.tradeIds != null) {
+            journalTradeRepository.deleteByJournalId(id)
+            if (request.tradeIds.isNotEmpty()) {
+                journalTradeRepository.saveAll(request.tradeIds.map { JournalTrade(journalId = id, tradeId = it) })
+            }
+        }
+        val linkedTradeIds = request.tradeIds ?: journalTradeRepository.findByJournalId(id).map { it.tradeId }
+        return saved.toResponse(linkedTradeIds = linkedTradeIds)
     }
 
     @Transactional
@@ -106,6 +133,7 @@ class JournalService(
         journalImageService.deleteByJournalId(id)
         journalCommentRepository.deleteByJournalId(id)
         journalRatingRepository.deleteByJournalId(id)
+        journalTradeRepository.deleteByJournalId(id)
         journalRepository.delete(journal)
     }
 
@@ -124,6 +152,9 @@ class JournalService(
                 journalRatingRepository.save(existing)
             } else {
                 journalRatingRepository.save(JournalRating(journalId = id, userId = userId, liked = request.liked))
+                if (request.liked) {
+                    notificationService.notifyJournalLike(userId, journal.userId, id)
+                }
             }
         }
 
@@ -137,6 +168,7 @@ class JournalService(
         commentCount: Long = 0,
         likeCount: Long = 0,
         myLike: Boolean? = null,
+        linkedTradeIds: List<Long> = emptyList(),
     ) = JournalResponse(
         id = id,
         userId = userId,
@@ -149,5 +181,6 @@ class JournalService(
         likeCount = likeCount,
         myLike = myLike,
         commentCount = commentCount,
+        linkedTradeIds = linkedTradeIds,
     )
 }

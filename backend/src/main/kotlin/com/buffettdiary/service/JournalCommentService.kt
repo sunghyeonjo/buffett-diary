@@ -9,6 +9,7 @@ import com.buffettdiary.exception.NotFoundException
 import com.buffettdiary.repository.FollowRepository
 import com.buffettdiary.repository.JournalCommentRepository
 import com.buffettdiary.repository.JournalRepository
+import com.buffettdiary.enums.ReferenceType
 import com.buffettdiary.repository.UserRepository
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -19,6 +20,7 @@ class JournalCommentService(
     private val journalRepository: JournalRepository,
     private val followRepository: FollowRepository,
     private val userRepository: UserRepository,
+    private val notificationService: NotificationService,
 ) {
     @Transactional(readOnly = true)
     fun getComments(journalId: Long, requestingUserId: Long): List<JournalCommentResponse> {
@@ -42,6 +44,8 @@ class JournalCommentService(
         val comment = journalCommentRepository.save(
             JournalComment(journalId = journalId, userId = userId, content = request.content)
         )
+        notificationService.notifyJournalComment(userId, journal.userId, journalId)
+        notificationService.notifyMentions(userId, request.content, ReferenceType.JOURNAL, journalId)
         val nickname = userRepository.findById(userId).orElseThrow { NotFoundException("User not found") }.nickname
         return comment.toResponse(nickname)
     }
@@ -60,6 +64,8 @@ class JournalCommentService(
         val reply = journalCommentRepository.save(
             JournalComment(journalId = journalId, userId = userId, parentId = parentId, content = request.content)
         )
+        notificationService.notifyJournalComment(userId, journal.userId, journalId)
+        notificationService.notifyMentions(userId, request.content, ReferenceType.JOURNAL, journalId)
         val nickname = userRepository.findById(userId).orElseThrow { NotFoundException("User not found") }.nickname
         return reply.toResponse(nickname)
     }

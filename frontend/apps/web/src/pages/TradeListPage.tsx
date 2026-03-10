@@ -449,16 +449,16 @@ export default function TradeListPage() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="mx-auto max-w-3xl space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">매매 내역</h1>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setBulkOpen(true)}>
-            <List className="mr-2 h-4 w-4" />
+          <Button variant="outline" size="sm" onClick={() => setBulkOpen(true)}>
+            <List className="mr-1.5 h-3.5 w-3.5" />
             일괄 등록
           </Button>
-          <Button onClick={() => setFormTradeId('new')}>
-            <Plus className="mr-2 h-4 w-4" />
+          <Button size="sm" onClick={() => setFormTradeId('new')}>
+            <Plus className="mr-1.5 h-3.5 w-3.5" />
             새 매매
           </Button>
         </div>

@@ -22,10 +22,15 @@ class CacheConfig {
         val followCountsConfig = RedisCacheConfiguration.defaultCacheConfig()
             .entryTtl(Duration.ofMinutes(1))
 
+        val leaderboardConfig = RedisCacheConfiguration.defaultCacheConfig()
+            .entryTtl(Duration.ofHours(1))
+
         return RedisCacheManager.builder(connectionFactory)
             .cacheDefaults(defaultConfig)
             .withCacheConfiguration("stocks", stocksConfig)
             .withCacheConfiguration("followCounts", followCountsConfig)
+            .withCacheConfiguration("tradeAnalytics", defaultConfig)
+            .withCacheConfiguration("leaderboard", leaderboardConfig)
             .build()
     }
 }

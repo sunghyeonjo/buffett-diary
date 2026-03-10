@@ -10,7 +10,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { TickerCombobox } from '@/components/TickerCombobox'
-import { ImagePlus, X } from 'lucide-react'
+import { ImagePlus, X, ChevronDown, ChevronUp } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
 
 const MAX_IMAGES = 5
 const MAX_FILE_SIZE = 5 * 1024 * 1024
@@ -39,6 +40,15 @@ export default function TradeForm({ tradeId, compact, onCancel, onSaved }: Trade
   const [newFiles, setNewFiles] = useState<File[]>([])
   const [newPreviews, setNewPreviews] = useState<string[]>([])
   const [uploading, setUploading] = useState(false)
+  const [tags, setTags] = useState<string[]>([])
+  const [tagInput, setTagInput] = useState('')
+  const [showPlan, setShowPlan] = useState(false)
+
+  const { data: existingTags } = useQuery<string[]>({
+    queryKey: ['tradeTags'],
+    queryFn: () => tradesApi.tags().then((r) => r.data),
+  })
+  const [tagSuggestions, setTagSuggestions] = useState<string[]>([])
 
   const { register, handleSubmit, reset, watch, setValue, formState: { isSubmitting } } = useForm<TradeRequest & { profit?: number | null }>({
     defaultValues: {
@@ -79,9 +89,17 @@ export default function TradeForm({ tradeId, compact, onCancel, onSaved }: Trade
         entryPrice: existingTrade.entryPrice,
         profit: existingTrade.profit,
         reason: existingTrade.reason,
+        targetPrice: existingTrade.targetPrice,
+        stopLossPrice: existingTrade.stopLossPrice,
       })
       if (existingTrade.images?.length) {
         loadExistingImages(existingTrade.images, existingTrade.id)
+      }
+      if (existingTrade.tags?.length) {
+        setTags(existingTrade.tags)
+      }
+      if (existingTrade.targetPrice || existingTrade.stopLossPrice) {
+        setShowPlan(true)
       }
     }
   }, [existingTrade, reset, loadExistingImages])
@@ -185,7 +203,41 @@ export default function TradeForm({ tradeId, compact, onCancel, onSaved }: Trade
       exitPrice: null,
       profit: isBuy ? null : (data.profit ?? null),
       reason: data.reason || null,
+      tags: tags.length > 0 ? tags : undefined,
+      targetPrice: data.targetPrice || null,
+      stopLossPrice: data.stopLossPrice || null,
     })
+  }
+
+  const addTag = (tag: string) => {
+    const trimmed = tag.trim()
+    if (trimmed && !tags.includes(trimmed)) {
+      setTags([...tags, trimmed])
+    }
+    setTagInput('')
+    setTagSuggestions([])
+  }
+
+  const removeTag = (tag: string) => {
+    setTags(tags.filter((t) => t !== tag))
+  }
+
+  const handleTagInputChange = (value: string) => {
+    setTagInput(value)
+    if (value.trim() && existingTags) {
+      setTagSuggestions(
+        existingTags.filter((t) => t.toLowerCase().includes(value.toLowerCase()) && !tags.includes(t)).slice(0, 5)
+      )
+    } else {
+      setTagSuggestions([])
+    }
+  }
+
+  const handleTagKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault()
+      if (tagInput.trim()) addTag(tagInput)
+    }
   }
 
   const isBusy = isSubmitting || mutation.isPending || uploading
@@ -428,6 +480,79 @@ export default function TradeForm({ tradeId, compact, onCancel, onSaved }: Trade
           placeholder="이 매매를 한 이유는?"
           {...register('reason')}
         />
+      </div>
+
+      {/* Tags */}
+      <div className="space-y-2">
+        <Label>태그</Label>
+        <div className="flex flex-wrap gap-1.5">
+          {tags.map((tag) => (
+            <Badge key={tag} variant="secondary" className="gap-1">
+              {tag}
+              <button type="button" onClick={() => removeTag(tag)} className="ml-0.5 hover:text-destructive">
+                <X className="h-3 w-3" />
+              </button>
+            </Badge>
+          ))}
+        </div>
+        <div className="relative">
+          <Input
+            value={tagInput}
+            onChange={(e) => handleTagInputChange(e.target.value)}
+            onKeyDown={handleTagKeyDown}
+            placeholder="태그 입력 후 Enter"
+          />
+          {tagSuggestions.length > 0 && (
+            <div className="absolute z-10 mt-1 w-full rounded-md border bg-popover shadow-md">
+              {tagSuggestions.map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  className="w-full px-3 py-1.5 text-left text-sm hover:bg-accent"
+                  onClick={() => addTag(s)}
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Plan section */}
+      <div className="space-y-2">
+        <button
+          type="button"
+          className="flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground"
+          onClick={() => setShowPlan(!showPlan)}
+        >
+          매매 계획
+          {showPlan ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+        </button>
+        {showPlan && (
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="targetPrice">목표가($)</Label>
+              <Input
+                id="targetPrice"
+                type="number"
+                step="0.01"
+                placeholder="목표 매도가"
+                {...register('targetPrice', { valueAsNumber: true })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="stopLossPrice">손절가($)</Label>
+              <Input
+                id="stopLossPrice"
+                type="number"
+                step="0.01"
+                placeholder="손절 기준가"
+                {...register('stopLossPrice', { valueAsNumber: true })}
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Image upload section */}

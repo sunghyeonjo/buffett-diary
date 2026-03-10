@@ -38,4 +38,10 @@ class Trade(
 
     @Column(columnDefinition = "TEXT")
     var reason: String? = null,
+
+    @Column(name = "target_price", precision = 12, scale = 4)
+    var targetPrice: BigDecimal? = null,
+
+    @Column(name = "stop_loss_price", precision = 12, scale = 4)
+    var stopLossPrice: BigDecimal? = null,
 ) : AuditEntity()

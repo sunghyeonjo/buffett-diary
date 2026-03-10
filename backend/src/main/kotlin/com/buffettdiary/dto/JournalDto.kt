@@ -10,6 +10,7 @@ data class JournalRequest(
     @field:NotBlank @field:Size(max = 100) val title: String,
     @field:NotBlank val content: String,
     @field:NotNull val journalDate: LocalDate,
+    val tradeIds: List<Long>? = null,
 )
 
 data class JournalResponse(
@@ -25,9 +26,10 @@ data class JournalResponse(
     val likeCount: Long = 0,
     val myLike: Boolean? = null,
     val commentCount: Long = 0,
+    val linkedTradeIds: List<Long> = emptyList(),
 ) : Serializable {
     companion object {
-        private const val serialVersionUID = 2L
+        private const val serialVersionUID = 3L
     }
 }
 

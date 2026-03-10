@@ -27,4 +27,7 @@ class User(
 
     @Column(length = 200)
     var bio: String? = null,
+
+    @Column(name = "show_on_leaderboard", nullable = false)
+    var showOnLeaderboard: Boolean = false,
 ) : AuditEntity()

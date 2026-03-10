@@ -1,8 +1,8 @@
-import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { useAuth } from '@/contexts/AuthContext'
+import { Link, Outlet, useLocation } from 'react-router-dom'
 import { cn } from '@/lib/utils'
-import { Button } from '@/components/ui/button'
-import { Rss, BookOpen, FileText, LogOut, User } from 'lucide-react'
+import { Rss, BookOpen, FileText, User } from 'lucide-react'
+import NotificationBell from '@/components/NotificationBell'
+import ProfileMenu from '@/components/ProfileMenu'
 
 const navItems = [
   { to: '/', label: '피드', icon: Rss },
@@ -11,11 +11,7 @@ const navItems = [
 ]
 
 export default function Layout() {
-  const { user, logout } = useAuth()
   const location = useLocation()
-  const navigate = useNavigate()
-
-  const initial = user?.nickname?.charAt(0).toUpperCase() ?? '?'
   const isMyPage = location.pathname === '/mypage'
 
   const isActive = (to: string) => {
@@ -25,7 +21,7 @@ export default function Layout() {
 
   return (
     <div className="flex h-screen">
-      {/* Desktop Sidebar */}
+      {/* Desktop Sidebar — logo + nav only */}
       <aside className="hidden w-56 flex-col border-r bg-card md:flex">
         <div className="px-5 py-6">
           <Link to="/" className="flex items-center gap-2">
@@ -51,58 +47,27 @@ export default function Layout() {
             </Link>
           ))}
         </nav>
-
-        {/* Bottom: Profile + Logout */}
-        <div className="border-t p-3">
-          <button
-            onClick={() => navigate('/mypage')}
-            className={cn(
-              'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
-              isMyPage
-                ? 'bg-accent text-accent-foreground'
-                : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground',
-            )}
-          >
-            <div className={cn(
-              'flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold',
-              isMyPage
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-muted text-muted-foreground',
-            )}>
-              {initial}
-            </div>
-            <span className="truncate">{user?.nickname}</span>
-          </button>
-          <button
-            onClick={logout}
-            className="mt-0.5 flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
-          >
-            <LogOut className="h-5 w-5" />
-            로그아웃
-          </button>
-        </div>
       </aside>
 
       {/* Main content */}
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Mobile top bar */}
-        <header className="flex items-center justify-between border-b px-4 py-3 md:hidden">
+        <header className="sticky top-0 z-20 flex items-center justify-between bg-background/95 backdrop-blur-sm px-4 py-3 md:hidden">
           <Link to="/" className="flex items-center gap-1.5">
             <img src="/logo.svg" alt="dayed" className="h-6 w-6" />
             <span className="text-base font-bold">dayed</span>
           </Link>
-          <button
-            onClick={() => navigate('/mypage')}
-            className={cn(
-              'flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold transition-colors',
-              isMyPage
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-muted text-muted-foreground hover:bg-accent',
-            )}
-          >
-            {initial}
-          </button>
+          <div className="flex items-center gap-1.5">
+            <NotificationBell />
+            <ProfileMenu />
+          </div>
         </header>
+
+        {/* Desktop top bar — fixed above scroll area, no border */}
+        <div className="hidden items-center justify-end gap-1.5 px-6 py-2.5 md:flex">
+          <NotificationBell />
+          <ProfileMenu />
+        </div>
 
         <main className="flex-1 overflow-auto p-4 pb-20 md:p-6 md:pb-6">
           <Outlet />

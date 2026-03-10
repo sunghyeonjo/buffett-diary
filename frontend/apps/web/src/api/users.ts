@@ -1,4 +1,4 @@
-import type { UserProfile, UserSearchResult, UpdateProfileRequest, PageResponse, Journal, Trade, NotificationSetting, UpdateNotificationSettingRequest } from '@buffett-diary/shared'
+import type { UserProfile, UserSearchResult, UpdateProfileRequest, PageResponse, Journal, Trade, NotificationSetting, UpdateNotificationSettingRequest, Badge, LeaderboardEntry } from '@buffett-diary/shared'
 import client from './client'
 
 export const usersApi = {
@@ -25,5 +25,14 @@ export const usersApi = {
   },
   trades(userId: number, page = 0, size = 20) {
     return client.get<PageResponse<Trade>>(`/users/${userId}/trades`, { params: { page, size } })
+  },
+  badges() {
+    return client.get<Badge[]>('/users/me/badges')
+  },
+}
+
+export const leaderboardApi = {
+  list(type: 'totalProfit' | 'winRate' = 'totalProfit', minTrades = 10) {
+    return client.get<LeaderboardEntry[]>('/leaderboard', { params: { type, minTrades } })
   },
 }

@@ -126,6 +126,36 @@ export default function UserProfilePage() {
         </div>
       )}
 
+      {/* Stats & Badges */}
+      {profile.publicStats && (
+        <div className="grid grid-cols-3 gap-3 px-4 pb-4">
+          <div className="rounded-lg bg-muted/50 p-3 text-center">
+            <p className="text-xs text-muted-foreground">총 거래</p>
+            <p className="text-lg font-bold">{profile.publicStats.totalTrades}</p>
+          </div>
+          <div className="rounded-lg bg-muted/50 p-3 text-center">
+            <p className="text-xs text-muted-foreground">승률</p>
+            <p className="text-lg font-bold">{profile.publicStats.winRate.toFixed(1)}%</p>
+          </div>
+          <div className="rounded-lg bg-muted/50 p-3 text-center">
+            <p className="text-xs text-muted-foreground">총 수익</p>
+            <p className={`text-lg font-bold ${profile.publicStats.totalProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              ${profile.publicStats.totalProfit.toFixed(0)}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {profile.badges.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 px-4 pb-4">
+          {profile.badges.map((b) => (
+            <Badge key={b.type} variant="secondary" title={b.description}>
+              {b.name}
+            </Badge>
+          ))}
+        </div>
+      )}
+
       {/* Tabs */}
       <div className="flex border-t">
         {([

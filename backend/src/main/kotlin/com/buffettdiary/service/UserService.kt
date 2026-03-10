@@ -6,6 +6,7 @@ import com.buffettdiary.exception.ConflictException
 import com.buffettdiary.exception.ForbiddenException
 import com.buffettdiary.exception.NotFoundException
 import com.buffettdiary.repository.*
+import java.math.BigDecimal
 import org.springframework.cache.annotation.CacheEvict
 import org.springframework.cache.annotation.Cacheable
 import org.springframework.data.domain.PageRequest
@@ -29,6 +30,8 @@ class UserService(
     private val journalRatingRepository: JournalRatingRepository,
     private val refreshTokenRepository: RefreshTokenRepository,
     private val notificationSettingRepository: NotificationSettingRepository,
+    private val notificationRepository: com.buffettdiary.repository.NotificationRepository,
+    private val badgeService: BadgeService,
 ) {
     @Transactional(readOnly = true)
     @Cacheable(value = ["userProfile"], key = "#requestingUserId + '-' + #targetUserId")
@@ -36,6 +39,20 @@ class UserService(
         val user = userRepository.findById(targetUserId)
             .orElseThrow { NotFoundException("User not found") }
         val isOwn = requestingUserId == targetUserId
+        val canView = isOwn || followService.isFollowing(requestingUserId, targetUserId)
+
+        val publicStats = if (canView) {
+            val trades = tradeRepository.findByUserId(targetUserId)
+            val closed = trades.filter { it.profit != null }
+            val wins = closed.filter { it.profit!! > BigDecimal.ZERO }
+            PublicTradeStats(
+                totalTrades = trades.size,
+                winRate = if (closed.isNotEmpty()) wins.size.toDouble() / closed.size * 100 else 0.0,
+                totalProfit = closed.sumOf { it.profit!! },
+            )
+        } else null
+
+        val badges = badgeService.getUserBadges(targetUserId)
 
         return UserProfileResponse(
             id = user.id,
@@ -46,6 +63,9 @@ class UserService(
             followingCount = followService.followingCount(targetUserId),
             isFollowing = if (isOwn) false else followService.isFollowing(requestingUserId, targetUserId),
             isOwnProfile = isOwn,
+            publicStats = publicStats,
+            badges = badges,
+            showOnLeaderboard = user.showOnLeaderboard,
         )
     }
 
@@ -73,6 +93,7 @@ class UserService(
             user.nickname = request.nickname
         }
         user.bio = request.bio
+        request.showOnLeaderboard?.let { user.showOnLeaderboard = it }
         userRepository.save(user)
     }
 
@@ -97,7 +118,8 @@ class UserService(
         // Delete follow relationships
         followRepository.deleteByFollowerIdOrFollowingId(userId, userId)
 
-        // Delete notification settings
+        // Delete notifications and settings
+        notificationRepository.deleteByUserId(userId)
         notificationSettingRepository.deleteByUserId(userId)
 
         // Delete refresh tokens

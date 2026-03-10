@@ -10,4 +10,6 @@ interface UserRepository : JpaRepository<User, Long> {
     fun existsByEmail(email: String): Boolean
     fun existsByNickname(nickname: String): Boolean
     fun findByNicknameContainingIgnoreCase(keyword: String, pageable: Pageable): Page<User>
+    fun findByShowOnLeaderboardTrue(): List<User>
+    fun findByNicknameIn(nicknames: List<String>): List<User>
 }

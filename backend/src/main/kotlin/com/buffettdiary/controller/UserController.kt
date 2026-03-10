@@ -1,6 +1,7 @@
 package com.buffettdiary.controller
 
 import com.buffettdiary.dto.*
+import com.buffettdiary.service.BadgeService
 import com.buffettdiary.service.UserService
 import jakarta.validation.Valid
 import org.springframework.http.ResponseEntity
@@ -11,6 +12,7 @@ import org.springframework.web.bind.annotation.*
 @RequestMapping("/api/v1/users")
 class UserController(
     private val userService: UserService,
+    private val badgeService: BadgeService,
 ) {
     private fun userId(auth: Authentication): Long = auth.principal as Long
 
@@ -52,6 +54,11 @@ class UserController(
         @RequestBody request: UpdateNotificationSettingRequest,
     ): ResponseEntity<NotificationSettingResponse> {
         return ResponseEntity.ok(userService.updateNotificationSettings(userId(auth), request))
+    }
+
+    @GetMapping("/me/badges")
+    fun myBadges(auth: Authentication): ResponseEntity<List<BadgeResponse>> {
+        return ResponseEntity.ok(badgeService.getUserBadges(userId(auth)))
     }
 
     @GetMapping("/{targetId}/journals")

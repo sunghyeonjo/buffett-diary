@@ -25,12 +25,14 @@ export interface Journal {
   likeCount: number
   myLike: boolean | null
   commentCount: number
+  linkedTradeIds: number[]
 }
 
 export interface JournalRequest {
   title: string
   content: string
   journalDate: string
+  tradeIds?: number[]
 }
 
 export interface JournalFilter {

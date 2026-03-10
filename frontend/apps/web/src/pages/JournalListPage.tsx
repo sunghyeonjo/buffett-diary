@@ -410,8 +410,8 @@ export default function JournalListPage() {
     <div className="mx-auto max-w-3xl space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">투자일지</h1>
-        <Button onClick={() => setFormJournalId('new')}>
-          <Plus className="mr-2 h-4 w-4" />
+        <Button size="sm" onClick={() => setFormJournalId('new')}>
+          <Plus className="mr-1.5 h-3.5 w-3.5" />
           새 일지
         </Button>
       </div>

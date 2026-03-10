@@ -1,4 +1,4 @@
-import type { Trade, TradeRequest, TradeFilter, PageResponse, TradeStats, TradeImageMeta, TradeCommentRequest, TradeLikeRequest, TradeComment } from '@buffett-diary/shared'
+import type { Trade, TradeRequest, TradeFilter, PageResponse, TradeStats, TradeImageMeta, TradeCommentRequest, TradeLikeRequest, TradeComment, TickerStats, MonthlyPnl, EquityCurvePoint, DailyPnlEntry, TagStats, PeriodReview } from '@buffett-diary/shared'
 import client from './client'
 
 export const tradesApi = {
@@ -22,6 +22,27 @@ export const tradesApi = {
   },
   stats(period: 'today' | 'week' | 'month' | 'year' | 'all' = 'all') {
     return client.get<TradeStats>('/trades/stats', { params: { period } })
+  },
+  tickerStats() {
+    return client.get<TickerStats[]>('/trades/stats/by-ticker')
+  },
+  monthlyPnl() {
+    return client.get<MonthlyPnl[]>('/trades/stats/monthly')
+  },
+  equityCurve() {
+    return client.get<EquityCurvePoint[]>('/trades/stats/equity-curve')
+  },
+  dailyPnl(year: number) {
+    return client.get<DailyPnlEntry[]>('/trades/stats/daily-pnl', { params: { year } })
+  },
+  tagStats() {
+    return client.get<TagStats[]>('/trades/stats/by-tag')
+  },
+  tags() {
+    return client.get<string[]>('/trades/tags')
+  },
+  review(type: 'weekly' | 'monthly', date?: string) {
+    return client.get<PeriodReview>('/trades/review', { params: { type, date } })
   },
 }
 

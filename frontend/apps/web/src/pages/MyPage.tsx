@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { FollowUser, TradeStats } from '@buffett-diary/shared'
@@ -10,8 +10,25 @@ import { formatDate } from '@/lib/date'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { TabFilter } from '@/components/ui/tab-filter'
-import { Settings, LogOut, TrendingUp, BarChart3, Mail, Calendar, X, Bell } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
+import { Settings, TrendingUp, BarChart3, Mail, Calendar, X, Bell, UserPlus, MessageSquare, Heart } from 'lucide-react'
+import { Switch } from '@/components/ui/switch'
 import EditProfileModal from '@/components/EditProfileModal'
+
+const EquityCurveChart = lazy(() => import('@/components/EquityCurveChart'))
+const MonthlyBreakdownChart = lazy(() => import('@/components/MonthlyBreakdownChart'))
+const MonthlyPnlHeatmap = lazy(() => import('@/components/MonthlyPnlHeatmap'))
+const TickerStatsTable = lazy(() => import('@/components/TickerStatsTable'))
+const PeriodReviewSection = lazy(() => import('@/components/PeriodReview'))
+
+type AnalyticsTab = 'equity' | 'monthly' | 'heatmap' | 'ticker'
+
+const ANALYTICS_TABS: { value: AnalyticsTab; label: string }[] = [
+  { value: 'equity', label: '손익 곡선' },
+  { value: 'monthly', label: '월별 손익' },
+  { value: 'heatmap', label: '히트맵' },
+  { value: 'ticker', label: '종목별 통계' },
+]
 
 type StatsPeriod = 'week' | 'month' | 'year' | 'all'
 
@@ -44,7 +61,7 @@ export default function MyPage() {
     queryFn: () => tradesApi.stats(period).then((r) => r.data),
   })
 
-  const { data: notifSettings } = useQuery({
+  const { data: notifSettings, isLoading: notifLoading } = useQuery({
     queryKey: ['notificationSettings'],
     queryFn: () => usersApi.getNotificationSettings().then((r) => r.data),
   })
@@ -52,7 +69,20 @@ export default function MyPage() {
   const notifMutation = useMutation({
     mutationFn: (data: { followNotify?: boolean; commentNotify?: boolean; likeNotify?: boolean }) =>
       usersApi.updateNotificationSettings(data),
-    onSuccess: () => {
+    onMutate: async (newData) => {
+      await queryClient.cancelQueries({ queryKey: ['notificationSettings'] })
+      const prev = queryClient.getQueryData<{ followNotify: boolean; commentNotify: boolean; likeNotify: boolean }>(['notificationSettings'])
+      if (prev) {
+        queryClient.setQueryData(['notificationSettings'], { ...prev, ...newData })
+      }
+      return { prev }
+    },
+    onError: (_err, _data, context) => {
+      if (context?.prev) {
+        queryClient.setQueryData(['notificationSettings'], context.prev)
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['notificationSettings'] })
     },
   })
@@ -93,9 +123,6 @@ export default function MyPage() {
               <Settings className="mr-1.5 h-3.5 w-3.5" />
               편집
             </Button>
-            <Button variant="ghost" size="sm" className="h-8 text-muted-foreground md:hidden" onClick={logout}>
-              <LogOut className="h-3.5 w-3.5" />
-            </Button>
           </div>
 
           {/* Stats — clickable counts */}
@@ -116,6 +143,17 @@ export default function MyPage() {
           )}
         </div>
       </div>
+
+      {/* Badges */}
+      {profile?.badges && profile.badges.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1.5 px-0">
+          {profile.badges.map((b) => (
+            <Badge key={b.type} variant="secondary" title={b.description}>
+              {b.name}
+            </Badge>
+          ))}
+        </div>
+      )}
 
       {/* 투자 성과 섹션 */}
       <section className="mt-4">
@@ -192,30 +230,44 @@ export default function MyPage() {
         )}
       </section>
 
+      {/* 분석 섹션 */}
+      {hasTrades && (
+        <AnalyticsSection />
+      )}
+
       {/* 알림 설정 섹션 */}
       <section className="mt-8 space-y-3 border-t pt-6">
         <h2 className="flex items-center gap-1.5 text-sm font-semibold">
           <Bell className="h-4 w-4" />
           알림 설정
         </h2>
-        <p className="text-xs text-muted-foreground">(알림 기능 준비 중)</p>
-        <div className="space-y-2">
-          {([
-            { key: 'followNotify' as const, label: '팔로우 알림' },
-            { key: 'commentNotify' as const, label: '댓글 알림' },
-            { key: 'likeNotify' as const, label: '좋아요 알림' },
-          ]).map(({ key, label }) => (
-            <label key={key} className="flex items-center justify-between py-1">
-              <span className="text-sm">{label}</span>
-              <input
-                type="checkbox"
-                checked={notifSettings?.[key] ?? true}
-                onChange={(e) => notifMutation.mutate({ [key]: e.target.checked })}
-                className="h-4 w-4 rounded border-gray-300"
-              />
-            </label>
-          ))}
-        </div>
+        {notifLoading ? (
+          <div className="py-4 text-center text-xs text-muted-foreground">불러오는 중...</div>
+        ) : (
+          <div className="space-y-1">
+            {([
+              { key: 'followNotify' as const, label: '팔로우 알림', desc: '누군가 나를 팔로우할 때', icon: UserPlus },
+              { key: 'commentNotify' as const, label: '댓글 알림', desc: '내 게시물에 댓글이 달릴 때', icon: MessageSquare },
+              { key: 'likeNotify' as const, label: '좋아요 알림', desc: '내 게시물에 좋아요가 달릴 때', icon: Heart },
+            ]).map(({ key, label, desc, icon: Icon }) => (
+              <div key={key} className="flex items-center justify-between rounded-lg px-1 py-2.5">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted">
+                    <Icon className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">{label}</p>
+                    <p className="text-[11px] text-muted-foreground">{desc}</p>
+                  </div>
+                </div>
+                <Switch
+                  checked={notifSettings?.[key] ?? true}
+                  onCheckedChange={(checked) => notifMutation.mutate({ [key]: checked })}
+                />
+              </div>
+            ))}
+          </div>
+        )}
       </section>
 
       {/* 계정 정보 섹션 */}
@@ -232,10 +284,6 @@ export default function MyPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="hidden md:inline-flex" onClick={logout}>
-            <LogOut className="mr-1.5 h-3.5 w-3.5" />
-            로그아웃
-          </Button>
           {!confirmDelete ? (
             <Button variant="ghost" size="sm" className="text-destructive" onClick={() => setConfirmDelete(true)}>
               회원 탈퇴
@@ -278,6 +326,35 @@ export default function MyPage() {
         />
       )}
     </div>
+  )
+}
+
+function AnalyticsSection() {
+  const [activeTab, setActiveTab] = useState<AnalyticsTab>('equity')
+
+  return (
+    <section className="mt-8 space-y-4 border-t pt-6">
+      <div className="flex items-center justify-between">
+        <h2 className="flex items-center gap-1.5 text-sm font-semibold">
+          <BarChart3 className="h-4 w-4" />
+          분석
+        </h2>
+        <TabFilter options={ANALYTICS_TABS} value={activeTab} onChange={setActiveTab} />
+      </div>
+      <Card>
+        <CardContent className="pt-6">
+          <Suspense fallback={<div className="text-sm text-muted-foreground">불러오는 중...</div>}>
+            {activeTab === 'equity' && <EquityCurveChart />}
+            {activeTab === 'monthly' && <MonthlyBreakdownChart />}
+            {activeTab === 'heatmap' && <MonthlyPnlHeatmap />}
+            {activeTab === 'ticker' && <TickerStatsTable />}
+          </Suspense>
+        </CardContent>
+      </Card>
+      <Suspense fallback={<div className="text-sm text-muted-foreground">불러오는 중...</div>}>
+        <PeriodReviewSection />
+      </Suspense>
+    </section>
   )
 }
 

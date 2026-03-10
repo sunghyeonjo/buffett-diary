@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query
 import java.time.LocalDate
 
 interface JournalRepository : JpaRepository<Journal, Long> {
+    fun countByUserId(userId: Long): Long
     fun findByUserIdOrderByJournalDateDescCreatedAtDesc(userId: Long, pageable: Pageable): Page<Journal>
     fun findByUserIdInOrderByCreatedAtDesc(userIds: List<Long>, pageable: Pageable): Page<Journal>
 

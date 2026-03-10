@@ -2,6 +2,7 @@ package com.buffettdiary.controller
 
 import com.buffettdiary.dto.*
 import com.buffettdiary.enums.Position
+import com.buffettdiary.service.TagService
 import com.buffettdiary.service.TradeImageService
 import com.buffettdiary.service.TradeService
 import jakarta.validation.Valid
@@ -18,6 +19,7 @@ import org.springframework.web.multipart.MultipartFile
 class TradeController(
     private val tradeService: TradeService,
     private val tradeImageService: TradeImageService,
+    private val tagService: TagService,
 ) {
     private fun userId(auth: Authentication): Long = auth.principal as Long
 
@@ -63,6 +65,45 @@ class TradeController(
     @GetMapping("/stats")
     fun stats(auth: Authentication, @RequestParam(defaultValue = "all") period: String): ResponseEntity<TradeStatsResponse> {
         return ResponseEntity.ok(tradeService.stats(userId(auth), period))
+    }
+
+    @GetMapping("/stats/by-ticker")
+    fun statsByTicker(auth: Authentication): ResponseEntity<List<TickerStatsResponse>> {
+        return ResponseEntity.ok(tradeService.statsByTicker(userId(auth)))
+    }
+
+    @GetMapping("/stats/monthly")
+    fun statsMonthly(auth: Authentication): ResponseEntity<List<MonthlyPnlResponse>> {
+        return ResponseEntity.ok(tradeService.statsMonthly(userId(auth)))
+    }
+
+    @GetMapping("/stats/equity-curve")
+    fun equityCurve(auth: Authentication): ResponseEntity<List<EquityCurvePoint>> {
+        return ResponseEntity.ok(tradeService.equityCurve(userId(auth)))
+    }
+
+    @GetMapping("/stats/daily-pnl")
+    fun dailyPnl(auth: Authentication, @RequestParam(defaultValue = "2026") year: Int): ResponseEntity<List<DailyPnlEntry>> {
+        return ResponseEntity.ok(tradeService.dailyPnl(userId(auth), year))
+    }
+
+    @GetMapping("/stats/by-tag")
+    fun statsByTag(auth: Authentication): ResponseEntity<List<TagStatsResponse>> {
+        return ResponseEntity.ok(tagService.getTagStats(userId(auth)))
+    }
+
+    @GetMapping("/tags")
+    fun getTags(auth: Authentication): ResponseEntity<List<String>> {
+        return ResponseEntity.ok(tagService.getUserTags(userId(auth)))
+    }
+
+    @GetMapping("/review")
+    fun review(
+        auth: Authentication,
+        @RequestParam(defaultValue = "weekly") type: String,
+        @RequestParam(required = false) date: String?,
+    ): ResponseEntity<PeriodReviewResponse> {
+        return ResponseEntity.ok(tradeService.periodReview(userId(auth), type, date))
     }
 
     // --- Image endpoints ---
