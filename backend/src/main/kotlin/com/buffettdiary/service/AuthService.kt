@@ -88,11 +88,20 @@ class AuthService(
 
     @Transactional
     fun login(request: LoginRequest): AuthResponse {
+        val rateLimitKey = "login:attempts:${request.email}"
+        val attempts = redisTemplate.opsForValue().increment(rateLimitKey) ?: 1
+        if (attempts == 1L) {
+            redisTemplate.expire(rateLimitKey, Duration.ofMinutes(15))
+        }
+        if (attempts > 10) {
+            throw RateLimitException("로그인 시도 횟수를 초과했습니다. 15분 후 다시 시도해주세요")
+        }
         val user = userRepository.findByEmail(request.email)
             ?: throw BadRequestException("이메일 또는 비밀번호가 올바르지 않습니다")
         if (user.password == null || !passwordEncoder.matches(request.password, user.password)) {
             throw BadRequestException("이메일 또는 비밀번호가 올바르지 않습니다")
         }
+        redisTemplate.delete(rateLimitKey)
         return createAuthResponse(user)
     }
 

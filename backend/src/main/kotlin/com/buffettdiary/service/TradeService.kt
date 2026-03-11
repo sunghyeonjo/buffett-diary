@@ -12,6 +12,7 @@ import com.buffettdiary.repository.TradeRepository
 import com.buffettdiary.entity.TradeRating
 import org.springframework.cache.annotation.CacheEvict
 import org.springframework.cache.annotation.Cacheable
+import org.springframework.cache.annotation.Caching
 import org.springframework.data.domain.PageRequest
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -47,7 +48,9 @@ class TradeService(
         val trades = result.content
         val tradeIds = trades.map { it.id }
         val imagesMap = tradeImageService.getImageMetasByTradeIds(tradeIds, userId)
-        val commentCounts = tradeIds.associateWith { tradeCommentRepository.countByTradeId(it) }
+        val commentCounts = if (tradeIds.isNotEmpty()) {
+            tradeCommentRepository.countByTradeIdIn(tradeIds).associate { it.entityId to it.count }
+        } else emptyMap()
         val likeStats = if (tradeIds.isNotEmpty()) {
             tradeRatingRepository.findLikeCountsByTradeIds(tradeIds).associateBy { it.tradeId }
         } else emptyMap()
@@ -95,7 +98,13 @@ class TradeService(
     }
 
     @Transactional
-    @CacheEvict(value = ["trades", "tradeDetail", "tradeStats", "tradeAnalytics"], allEntries = true)
+    @Caching(evict = [
+        CacheEvict(value = ["trades", "tradeDetail", "tradeStats"], allEntries = true),
+        CacheEvict(value = ["tradeAnalytics"], key = "#userId + '-ticker'"),
+        CacheEvict(value = ["tradeAnalytics"], key = "#userId + '-monthly'"),
+        CacheEvict(value = ["tradeAnalytics"], key = "#userId + '-equity'"),
+        CacheEvict(value = ["tradeAnalytics"], key = "#userId + '-daily-' + T(java.time.LocalDate).now().year"),
+    ])
     fun create(userId: Long, request: TradeRequest): TradeResponse {
         val trade = tradeRepository.save(buildTrade(userId, request))
         if (!request.tags.isNullOrEmpty()) {
@@ -107,14 +116,26 @@ class TradeService(
     }
 
     @Transactional
-    @CacheEvict(value = ["trades", "tradeDetail", "tradeStats", "tradeAnalytics"], allEntries = true)
+    @Caching(evict = [
+        CacheEvict(value = ["trades", "tradeDetail", "tradeStats"], allEntries = true),
+        CacheEvict(value = ["tradeAnalytics"], key = "#userId + '-ticker'"),
+        CacheEvict(value = ["tradeAnalytics"], key = "#userId + '-monthly'"),
+        CacheEvict(value = ["tradeAnalytics"], key = "#userId + '-equity'"),
+        CacheEvict(value = ["tradeAnalytics"], key = "#userId + '-daily-' + T(java.time.LocalDate).now().year"),
+    ])
     fun bulkCreate(userId: Long, requests: List<TradeRequest>): List<TradeResponse> {
         val trades = requests.map { buildTrade(userId, it) }
         return tradeRepository.saveAll(trades).map { it.toResponse() }
     }
 
     @Transactional
-    @CacheEvict(value = ["trades", "tradeDetail", "tradeStats", "tradeAnalytics"], allEntries = true)
+    @Caching(evict = [
+        CacheEvict(value = ["trades", "tradeDetail", "tradeStats"], allEntries = true),
+        CacheEvict(value = ["tradeAnalytics"], key = "#userId + '-ticker'"),
+        CacheEvict(value = ["tradeAnalytics"], key = "#userId + '-monthly'"),
+        CacheEvict(value = ["tradeAnalytics"], key = "#userId + '-equity'"),
+        CacheEvict(value = ["tradeAnalytics"], key = "#userId + '-daily-' + T(java.time.LocalDate).now().year"),
+    ])
     fun update(userId: Long, id: Long, request: TradeRequest): TradeResponse {
         val trade = tradeRepository.findById(id)
             .orElseThrow { NotFoundException("Trade not found") }
@@ -139,7 +160,13 @@ class TradeService(
     }
 
     @Transactional
-    @CacheEvict(value = ["trades", "tradeDetail", "tradeStats", "tradeAnalytics"], allEntries = true)
+    @Caching(evict = [
+        CacheEvict(value = ["trades", "tradeDetail", "tradeStats"], allEntries = true),
+        CacheEvict(value = ["tradeAnalytics"], key = "#userId + '-ticker'"),
+        CacheEvict(value = ["tradeAnalytics"], key = "#userId + '-monthly'"),
+        CacheEvict(value = ["tradeAnalytics"], key = "#userId + '-equity'"),
+        CacheEvict(value = ["tradeAnalytics"], key = "#userId + '-daily-' + T(java.time.LocalDate).now().year"),
+    ])
     fun delete(userId: Long, id: Long) {
         val trade = tradeRepository.findById(id)
             .orElseThrow { NotFoundException("Trade not found") }

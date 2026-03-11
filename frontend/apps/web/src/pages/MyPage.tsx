@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { TabFilter } from '@/components/ui/tab-filter'
 import { Badge } from '@/components/ui/badge'
-import { Settings, TrendingUp, BarChart3, Mail, Calendar, X, Bell, UserPlus, MessageSquare, Heart } from 'lucide-react'
+import { Settings, BarChart3, Mail, Calendar, X, Bell, UserPlus, MessageSquare, Heart } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import EditProfileModal from '@/components/EditProfileModal'
 
@@ -19,24 +19,14 @@ const EquityCurveChart = lazy(() => import('@/components/EquityCurveChart'))
 const MonthlyBreakdownChart = lazy(() => import('@/components/MonthlyBreakdownChart'))
 const MonthlyPnlHeatmap = lazy(() => import('@/components/MonthlyPnlHeatmap'))
 const TickerStatsTable = lazy(() => import('@/components/TickerStatsTable'))
-const PeriodReviewSection = lazy(() => import('@/components/PeriodReview'))
 
-type AnalyticsTab = 'equity' | 'monthly' | 'heatmap' | 'ticker'
+type AnalyticsTab = 'heatmap' | 'equity' | 'monthly' | 'ticker'
 
 const ANALYTICS_TABS: { value: AnalyticsTab; label: string }[] = [
+  { value: 'heatmap', label: '히트맵' },
   { value: 'equity', label: '손익 곡선' },
   { value: 'monthly', label: '월별 손익' },
-  { value: 'heatmap', label: '히트맵' },
   { value: 'ticker', label: '종목별 통계' },
-]
-
-type StatsPeriod = 'week' | 'month' | 'year' | 'all'
-
-const periodOptions: { value: StatsPeriod; label: string }[] = [
-  { value: 'week', label: '이번 주' },
-  { value: 'month', label: '이번 달' },
-  { value: 'year', label: '올해' },
-  { value: 'all', label: '전체' },
 ]
 
 export default function MyPage() {
@@ -45,7 +35,6 @@ export default function MyPage() {
   const queryClient = useQueryClient()
   const [editingProfile, setEditingProfile] = useState(false)
   const [followModal, setFollowModal] = useState<'followers' | 'following' | null>(null)
-  const [period, setPeriod] = useState<StatsPeriod>('month')
   const [confirmDelete, setConfirmDelete] = useState(false)
 
   const userId = user?.id ?? 0
@@ -56,9 +45,9 @@ export default function MyPage() {
     enabled: userId > 0,
   })
 
-  const { data: stats, isLoading: statsLoading } = useQuery({
-    queryKey: ['tradeStats', period],
-    queryFn: () => tradesApi.stats(period).then((r) => r.data),
+  const { data: stats } = useQuery({
+    queryKey: ['tradeStats', 'all'],
+    queryFn: () => tradesApi.stats('all').then((r) => r.data),
   })
 
   const { data: notifSettings, isLoading: notifLoading } = useQuery({
@@ -155,84 +144,9 @@ export default function MyPage() {
         </div>
       )}
 
-      {/* 투자 성과 섹션 */}
-      <section className="mt-4">
-        <div className="flex items-center justify-between">
-          <h2 className="flex items-center gap-1.5 text-sm font-semibold">
-            <TrendingUp className="h-4 w-4" />
-            투자 성과
-          </h2>
-          <TabFilter options={periodOptions} value={period} onChange={setPeriod} />
-        </div>
-
-        {statsLoading ? (
-          <div className="py-12 text-center text-sm text-muted-foreground">불러오는 중...</div>
-        ) : !hasTrades ? (
-          <div className="py-12 text-center">
-            <BarChart3 className="mx-auto h-10 w-10 text-muted-foreground/30" />
-            <p className="mt-3 text-muted-foreground">아직 매매 내역이 없습니다</p>
-            <Button variant="outline" size="sm" className="mt-3" onClick={() => navigate('/trades')}>
-              매매 기록하기
-            </Button>
-          </div>
-        ) : (
-          <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
-            <Card>
-              <CardContent className="p-4">
-                <p className="text-xs text-muted-foreground">총 수익</p>
-                <p className={`mt-1 text-xl font-bold tabular-nums ${profitColor(stats.totalProfit)}`}>
-                  {formatMoney(stats.totalProfit)}
-                </p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4">
-                <p className="text-xs text-muted-foreground">승률</p>
-                <p className="mt-1 text-xl font-bold tabular-nums">
-                  {stats.winRate.toFixed(1)}%
-                </p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4">
-                <p className="text-xs text-muted-foreground">총 매매</p>
-                <p className="mt-1 text-xl font-bold tabular-nums">{stats.totalTrades}</p>
-                <p className="mt-0.5 text-[11px] text-muted-foreground">
-                  매수 {stats.buyCount} · 매도 {stats.sellCount}
-                </p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4">
-                <p className="text-xs text-muted-foreground">평균 수익</p>
-                <p className={`mt-1 text-xl font-bold tabular-nums ${profitColor(stats.averageProfit)}`}>
-                  {formatMoney(stats.averageProfit)}
-                </p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4">
-                <p className="text-xs text-muted-foreground">최고 수익</p>
-                <p className={`mt-1 text-xl font-bold tabular-nums ${profitColor(stats.bestTrade)}`}>
-                  {formatMoney(stats.bestTrade)}
-                </p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4">
-                <p className="text-xs text-muted-foreground">최대 손실</p>
-                <p className={`mt-1 text-xl font-bold tabular-nums ${profitColor(stats.worstTrade)}`}>
-                  {formatMoney(stats.worstTrade)}
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-      </section>
-
       {/* 분석 섹션 */}
       {hasTrades && (
-        <AnalyticsSection />
+        <AnalyticsSection stats={stats!} profitColor={profitColor} formatMoney={formatMoney} />
       )}
 
       {/* 알림 설정 섹션 */}
@@ -329,31 +243,61 @@ export default function MyPage() {
   )
 }
 
-function AnalyticsSection() {
-  const [activeTab, setActiveTab] = useState<AnalyticsTab>('equity')
+function AnalyticsSection({
+  stats,
+  profitColor,
+  formatMoney,
+}: {
+  stats: TradeStats
+  profitColor: (v: number) => string
+  formatMoney: (v: number) => string
+}) {
+  const [activeTab, setActiveTab] = useState<AnalyticsTab>('heatmap')
 
   return (
     <section className="mt-8 space-y-4 border-t pt-6">
-      <div className="flex items-center justify-between">
-        <h2 className="flex items-center gap-1.5 text-sm font-semibold">
-          <BarChart3 className="h-4 w-4" />
-          분석
-        </h2>
-        <TabFilter options={ANALYTICS_TABS} value={activeTab} onChange={setActiveTab} />
+      <h2 className="flex items-center gap-1.5 text-sm font-semibold">
+        <BarChart3 className="h-4 w-4" />
+        분석
+      </h2>
+
+      {/* 핵심 지표 요약 */}
+      <div className="grid grid-cols-3 gap-3">
+        <Card>
+          <CardContent className="p-3">
+            <p className="text-[11px] text-muted-foreground">총 수익</p>
+            <p className={`mt-0.5 text-lg font-bold tabular-nums ${profitColor(stats.totalProfit)}`}>
+              {formatMoney(stats.totalProfit)}
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-3">
+            <p className="text-[11px] text-muted-foreground">승률</p>
+            <p className="mt-0.5 text-lg font-bold tabular-nums">
+              {stats.winRate.toFixed(1)}%
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-3">
+            <p className="text-[11px] text-muted-foreground">총 매매</p>
+            <p className="mt-0.5 text-lg font-bold tabular-nums">{stats.totalTrades}건</p>
+          </CardContent>
+        </Card>
       </div>
+
+      <TabFilter options={ANALYTICS_TABS} value={activeTab} onChange={setActiveTab} />
       <Card>
         <CardContent className="pt-6">
           <Suspense fallback={<div className="text-sm text-muted-foreground">불러오는 중...</div>}>
+            {activeTab === 'heatmap' && <MonthlyPnlHeatmap />}
             {activeTab === 'equity' && <EquityCurveChart />}
             {activeTab === 'monthly' && <MonthlyBreakdownChart />}
-            {activeTab === 'heatmap' && <MonthlyPnlHeatmap />}
             {activeTab === 'ticker' && <TickerStatsTable />}
           </Suspense>
         </CardContent>
       </Card>
-      <Suspense fallback={<div className="text-sm text-muted-foreground">불러오는 중...</div>}>
-        <PeriodReviewSection />
-      </Suspense>
     </section>
   )
 }

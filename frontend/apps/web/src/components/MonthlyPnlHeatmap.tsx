@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import type { DailyPnlEntry } from '@buffett-diary/shared'
 import { tradesApi } from '@/api/trades'
@@ -23,6 +24,7 @@ function getColor(profit: number, max: number): string {
 }
 
 export default function MonthlyPnlHeatmap() {
+  const navigate = useNavigate()
   const [year, setYear] = useState(new Date().getFullYear())
 
   const { data, isLoading } = useQuery<DailyPnlEntry[]>({
@@ -131,26 +133,32 @@ export default function MonthlyPnlHeatmap() {
             {/* Week columns */}
             {weeks.map((week, wi) => (
               <div key={wi} className="flex flex-col gap-0.5">
-                {week.map((cell, di) => (
-                  <div
-                    key={di}
-                    title={
-                      cell.profit !== null
-                        ? `${cell.date.toISOString().slice(0, 10)}: $${cell.profit.toFixed(2)}`
-                        : cell.date.getFullYear() === year
-                          ? cell.date.toISOString().slice(0, 10)
-                          : ''
-                    }
-                    className={cn(
-                      'h-[11px] w-[11px] rounded-sm',
-                      cell.date.getFullYear() !== year
-                        ? 'bg-transparent'
-                        : cell.profit !== null
-                          ? getColor(cell.profit, maxAbsProfit)
-                          : 'bg-muted/50',
-                    )}
-                  />
-                ))}
+                {week.map((cell, di) => {
+                  const dateStr = cell.date.getFullYear() === year
+                    ? cell.date.toISOString().slice(0, 10)
+                    : ''
+                  const hasTrade = cell.profit !== null
+                  return (
+                    <div
+                      key={di}
+                      title={
+                        hasTrade
+                          ? `${dateStr}: $${cell.profit!.toFixed(2)}`
+                          : dateStr
+                      }
+                      onClick={hasTrade ? () => navigate(`/trades?date=${dateStr}`) : undefined}
+                      className={cn(
+                        'h-[11px] w-[11px] rounded-sm',
+                        cell.date.getFullYear() !== year
+                          ? 'bg-transparent'
+                          : hasTrade
+                            ? getColor(cell.profit!, maxAbsProfit)
+                            : 'bg-muted/50',
+                        hasTrade && 'cursor-pointer ring-offset-background hover:ring-1 hover:ring-foreground/30',
+                      )}
+                    />
+                  )
+                })}
               </div>
             ))}
           </div>

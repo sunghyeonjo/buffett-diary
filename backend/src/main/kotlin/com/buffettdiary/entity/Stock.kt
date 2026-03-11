@@ -3,7 +3,10 @@ package com.buffettdiary.entity
 import jakarta.persistence.*
 
 @Entity
-@Table(name = "stocks")
+@Table(name = "stocks", indexes = [
+    Index(name = "idx_stock_name_ko", columnList = "name_ko"),
+    Index(name = "idx_stock_chosung", columnList = "chosung"),
+])
 class Stock(
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     val id: Long = 0,

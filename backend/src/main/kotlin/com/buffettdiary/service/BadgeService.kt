@@ -30,15 +30,14 @@ class BadgeService(
 
     @Transactional
     fun checkAndAwardTradeBadges(userId: Long) {
-        val trades = tradeRepository.findByUserId(userId)
-        val count = trades.size
+        val count = tradeRepository.countByUserId(userId)
 
         awardIfNew(userId, BadgeType.FIRST_TRADE) { count >= 1 }
         awardIfNew(userId, BadgeType.TRADES_10) { count >= 10 }
         awardIfNew(userId, BadgeType.TRADES_100) { count >= 100 }
 
-        // Win streak check
-        val closedTrades = trades
+        // Win streak check — need full trade list for streak calculation
+        val closedTrades = tradeRepository.findByUserId(userId)
             .filter { it.profit != null }
             .sortedBy { it.tradeDate }
 

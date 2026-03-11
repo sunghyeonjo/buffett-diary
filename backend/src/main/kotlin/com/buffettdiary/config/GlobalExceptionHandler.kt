@@ -1,6 +1,7 @@
 package com.buffettdiary.config
 
 import com.buffettdiary.exception.AppException
+import org.slf4j.LoggerFactory
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
@@ -13,6 +14,8 @@ data class ErrorResponse(val message: String)
 
 @RestControllerAdvice
 class GlobalExceptionHandler {
+
+    private val log = LoggerFactory.getLogger(javaClass)
 
     @ExceptionHandler(AppException::class)
     fun handleAppException(e: AppException): ResponseEntity<ErrorResponse> {
@@ -27,11 +30,17 @@ class GlobalExceptionHandler {
 
     @ExceptionHandler(DateTimeParseException::class)
     fun handleDateTimeParse(e: DateTimeParseException): ResponseEntity<ErrorResponse> {
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ErrorResponse("Invalid date format: ${e.parsedString}"))
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ErrorResponse("Invalid date format"))
     }
 
     @ExceptionHandler(DataIntegrityViolationException::class)
     fun handleDataIntegrity(e: DataIntegrityViolationException): ResponseEntity<ErrorResponse> {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(ErrorResponse("Data integrity violation"))
+    }
+
+    @ExceptionHandler(Exception::class)
+    fun handleUnexpected(e: Exception): ResponseEntity<ErrorResponse> {
+        log.error("Unexpected error", e)
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ErrorResponse("Internal server error"))
     }
 }

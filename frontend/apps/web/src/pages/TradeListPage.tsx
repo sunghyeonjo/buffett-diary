@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { Trade, TradeFilter } from '@buffett-diary/shared'
 import dayjs from 'dayjs'
@@ -360,8 +361,15 @@ interface DateGroup {
 }
 
 export default function TradeListPage() {
+  const [searchParams, setSearchParams] = useSearchParams()
   const queryClient = useQueryClient()
-  const [filter, setFilter] = useState<TradeFilter>(INITIAL_FILTER)
+
+  const dateParam = searchParams.get('date')
+  const [filter, setFilter] = useState<TradeFilter>(() =>
+    dateParam
+      ? { ...INITIAL_FILTER, startDate: dateParam, endDate: dateParam }
+      : INITIAL_FILTER,
+  )
   const [selectedTrade, setSelectedTrade] = useState<Trade | null>(null)
   const [formTradeId, setFormTradeId] = useState<number | 'new' | null>(null)
   const [bulkOpen, setBulkOpen] = useState(false)
@@ -377,9 +385,10 @@ export default function TradeListPage() {
     setTicker('')
     setPosition('')
     setFilter(INITIAL_FILTER)
+    if (dateParam) setSearchParams({}, { replace: true })
   }
 
-  const hasActiveFilters = ticker || position
+  const hasActiveFilters = ticker || position || dateParam
 
   const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery({
     queryKey: ['trades', filter],
@@ -488,6 +497,14 @@ export default function TradeListPage() {
             placeholder="종목 검색"
           />
         </div>
+        {dateParam && (
+          <Badge variant="secondary" className="gap-1">
+            {dateParam}
+            <button onClick={resetFilters} className="ml-0.5 hover:opacity-70">
+              <X className="h-3 w-3" />
+            </button>
+          </Badge>
+        )}
         {hasActiveFilters && (
           <Button variant="ghost" size="sm" onClick={resetFilters}>
             필터 초기화

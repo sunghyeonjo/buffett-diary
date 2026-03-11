@@ -39,7 +39,8 @@ class UserService(
         val user = userRepository.findById(targetUserId)
             .orElseThrow { NotFoundException("User not found") }
         val isOwn = requestingUserId == targetUserId
-        val canView = isOwn || followService.isFollowing(requestingUserId, targetUserId)
+        val isFollowing = if (isOwn) false else followService.isFollowing(requestingUserId, targetUserId)
+        val canView = isOwn || isFollowing
 
         val publicStats = if (canView) {
             val trades = tradeRepository.findByUserId(targetUserId)
@@ -61,7 +62,7 @@ class UserService(
             createdAt = user.createdAt.toString(),
             followerCount = followService.followerCount(targetUserId),
             followingCount = followService.followingCount(targetUserId),
-            isFollowing = if (isOwn) false else followService.isFollowing(requestingUserId, targetUserId),
+            isFollowing = isFollowing,
             isOwnProfile = isOwn,
             publicStats = publicStats,
             badges = badges,

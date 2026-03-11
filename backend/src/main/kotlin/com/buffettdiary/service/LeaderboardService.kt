@@ -17,9 +17,11 @@ class LeaderboardService(
     @Cacheable(value = ["leaderboard"], key = "#type + '-' + #minTrades")
     fun getLeaderboard(type: String, minTrades: Int): List<LeaderboardEntry> {
         val users = userRepository.findByShowOnLeaderboardTrue()
+        val userIds = users.map { it.id }
+        val tradesByUser = tradeRepository.findByUserIdIn(userIds).groupBy { it.userId }
 
         return users.mapNotNull { user ->
-            val trades = tradeRepository.findByUserId(user.id)
+            val trades = tradesByUser[user.id] ?: emptyList()
             if (trades.size < minTrades) return@mapNotNull null
 
             val closed = trades.filter { it.profit != null }
