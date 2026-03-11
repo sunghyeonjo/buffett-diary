@@ -2,7 +2,6 @@ package com.buffettdiary.controller
 
 import com.buffettdiary.dto.*
 import com.buffettdiary.enums.Position
-import com.buffettdiary.service.TagService
 import com.buffettdiary.service.TradeImageService
 import com.buffettdiary.service.TradeService
 import jakarta.validation.Valid
@@ -19,7 +18,6 @@ import org.springframework.web.multipart.MultipartFile
 class TradeController(
     private val tradeService: TradeService,
     private val tradeImageService: TradeImageService,
-    private val tagService: TagService,
 ) {
     private fun userId(auth: Authentication): Long = auth.principal as Long
 
@@ -85,16 +83,6 @@ class TradeController(
     @GetMapping("/stats/daily-pnl")
     fun dailyPnl(auth: Authentication, @RequestParam(defaultValue = "2026") year: Int): ResponseEntity<List<DailyPnlEntry>> {
         return ResponseEntity.ok(tradeService.dailyPnl(userId(auth), year))
-    }
-
-    @GetMapping("/stats/by-tag")
-    fun statsByTag(auth: Authentication): ResponseEntity<List<TagStatsResponse>> {
-        return ResponseEntity.ok(tagService.getTagStats(userId(auth)))
-    }
-
-    @GetMapping("/tags")
-    fun getTags(auth: Authentication): ResponseEntity<List<String>> {
-        return ResponseEntity.ok(tagService.getUserTags(userId(auth)))
     }
 
     @GetMapping("/review")

@@ -29,7 +29,6 @@ class TradeService(
     private val tradeCommentRepository: TradeCommentRepository,
     private val tradeRatingRepository: TradeRatingRepository,
     private val stockRepository: StockRepository,
-    private val tagService: TagService,
     private val badgeService: BadgeService,
     private val notificationService: NotificationService,
 ) {
@@ -62,8 +61,6 @@ class TradeService(
             stockRepository.findByTickerIn(tickers).associateBy { it.ticker }
         } else emptyMap()
 
-        val tagsMap = tagService.getTradeTagsMap(tradeIds)
-
         return PageResponse(
             content = trades.map {
                 it.toResponse(
@@ -72,7 +69,6 @@ class TradeService(
                     likeCount = likeStats[it.id]?.likeCount ?: 0,
                     myLike = myLikes[it.id]?.liked,
                     stockInfo = stockMap[it.ticker]?.let { s -> StockSummary(s.nameKo, s.logoUrl) },
-                    tags = tagsMap[it.id] ?: emptyList(),
                 )
             },
             totalElements = result.totalElements,
@@ -93,8 +89,7 @@ class TradeService(
         val likeCount = tradeRatingRepository.countByTradeIdAndLiked(id, true)
         val myLike = tradeRatingRepository.findByTradeIdAndUserId(id, userId)?.liked
         val stockInfo = stockRepository.findByTicker(trade.ticker)?.let { StockSummary(it.nameKo, it.logoUrl) }
-        val tags = tagService.getTradeTagNames(id)
-        return trade.toResponse(images, commentCount, likeCount, myLike = myLike, stockInfo = stockInfo, tags = tags)
+        return trade.toResponse(images, commentCount, likeCount, myLike = myLike, stockInfo = stockInfo)
     }
 
     @Transactional
@@ -107,12 +102,8 @@ class TradeService(
     ])
     fun create(userId: Long, request: TradeRequest): TradeResponse {
         val trade = tradeRepository.save(buildTrade(userId, request))
-        if (!request.tags.isNullOrEmpty()) {
-            tagService.setTradeTags(userId, trade.id, request.tags)
-        }
         badgeService.checkAndAwardTradeBadges(userId)
-        val tags = request.tags ?: emptyList()
-        return trade.toResponse(tags = tags)
+        return trade.toResponse()
     }
 
     @Transactional
@@ -152,11 +143,7 @@ class TradeService(
         trade.stopLossPrice = request.stopLossPrice
 
         val saved = tradeRepository.save(trade)
-        if (request.tags != null) {
-            tagService.setTradeTags(userId, id, request.tags)
-        }
-        val tags = request.tags ?: tagService.getTradeTagNames(id)
-        return saved.toResponse(tags = tags)
+        return saved.toResponse()
     }
 
     @Transactional
@@ -174,7 +161,6 @@ class TradeService(
         tradeImageService.deleteByTradeId(id)
         tradeCommentRepository.deleteByTradeId(id)
         tradeRatingRepository.deleteByTradeId(id)
-        tagService.setTradeTags(userId, id, emptyList())
         tradeRepository.delete(trade)
     }
 
@@ -369,12 +355,6 @@ class TradeService(
         val topPerformer = tickerProfits.maxByOrNull { it.value }?.key
         val worstPerformer = tickerProfits.minByOrNull { it.value }?.key
 
-        val tradeIds = trades.map { it.id }
-        val tagsMap = tagService.getTradeTagsMap(tradeIds)
-        val allTags = tagsMap.values.flatten()
-        val topTags = allTags.groupingBy { it }.eachCount()
-            .entries.sortedByDescending { it.value }.take(3).map { it.key }
-
         return PeriodReviewResponse(
             period = periodLabel,
             totalTrades = trades.size,
@@ -384,7 +364,6 @@ class TradeService(
             worstPerformer = worstPerformer,
             mostTradedTicker = mostTraded,
             winRateChange = prevWinRate?.let { winRate - it },
-            topTags = topTags,
         )
     }
 
@@ -418,7 +397,6 @@ class TradeService(
         likeCount: Long = 0,
         myLike: Boolean? = null,
         stockInfo: StockSummary? = null,
-        tags: List<String> = emptyList(),
     ) = TradeResponse(
         id = id,
         userId = userId,
@@ -437,7 +415,6 @@ class TradeService(
         stockInfo = stockInfo,
         updatedAt = updatedAt.toString(),
         images = images,
-        tags = tags,
         targetPrice = targetPrice,
         stopLossPrice = stopLossPrice,
     )

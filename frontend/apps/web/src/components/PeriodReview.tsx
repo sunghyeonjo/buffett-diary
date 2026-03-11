@@ -4,7 +4,6 @@ import type { PeriodReview } from '@buffett-diary/shared'
 import { tradesApi } from '@/api/trades'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { TabFilter } from '@/components/ui/tab-filter'
-import { Badge } from '@/components/ui/badge'
 
 type ReviewType = 'weekly' | 'monthly'
 
@@ -91,16 +90,6 @@ export default function PeriodReviewSection() {
                   )}
                 </div>
 
-                {review.topTags.length > 0 && (
-                  <div>
-                    <p className="mb-1 text-xs text-muted-foreground">주요 태그</p>
-                    <div className="flex gap-1">
-                      {review.topTags.map((tag) => (
-                        <Badge key={tag} variant="secondary">{tag}</Badge>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </>
             )}
           </CardContent>

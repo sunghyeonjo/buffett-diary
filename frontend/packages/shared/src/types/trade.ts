@@ -29,7 +29,6 @@ export interface Trade {
   updatedAt: string
   stockInfo?: StockSummary
   images: TradeImageMeta[]
-  tags: string[]
   targetPrice: number | null
   stopLossPrice: number | null
 }
@@ -43,7 +42,6 @@ export interface TradeRequest {
   exitPrice?: number | null
   profit?: number | null
   reason?: string | null
-  tags?: string[]
   targetPrice?: number | null
   stopLossPrice?: number | null
 }

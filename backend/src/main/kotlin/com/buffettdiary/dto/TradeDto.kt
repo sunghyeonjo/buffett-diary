@@ -17,7 +17,6 @@ data class TradeRequest(
     val exitPrice: BigDecimal? = null,
     val profit: BigDecimal? = null,
     val reason: String? = null,
-    val tags: List<String>? = null,
     val targetPrice: BigDecimal? = null,
     val stopLossPrice: BigDecimal? = null,
 )
@@ -40,7 +39,6 @@ data class TradeResponse(
     val updatedAt: String,
     val stockInfo: StockSummary? = null,
     val images: List<TradeImageResponse> = emptyList(),
-    val tags: List<String> = emptyList(),
     val targetPrice: BigDecimal? = null,
     val stopLossPrice: BigDecimal? = null,
 ) : Serializable {

@@ -39,16 +39,6 @@ export interface DailyPnlEntry {
   profit: number
 }
 
-export interface TagStats {
-  tag: string
-  tradeCount: number
-  winCount: number
-  lossCount: number
-  winRate: number
-  totalProfit: number
-  avgProfit: number
-}
-
 export interface PeriodReview {
   period: string
   totalTrades: number
@@ -58,5 +48,4 @@ export interface PeriodReview {
   worstPerformer: string | null
   mostTradedTicker: string | null
   winRateChange: number | null
-  topTags: string[]
 }

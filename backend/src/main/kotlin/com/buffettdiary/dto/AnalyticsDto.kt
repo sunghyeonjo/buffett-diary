@@ -47,20 +47,6 @@ data class DailyPnlEntry(
     }
 }
 
-data class TagStatsResponse(
-    val tag: String,
-    val tradeCount: Int,
-    val winCount: Int,
-    val lossCount: Int,
-    val winRate: Double,
-    val totalProfit: BigDecimal,
-    val avgProfit: BigDecimal,
-) : Serializable {
-    companion object {
-        private const val serialVersionUID = 1L
-    }
-}
-
 data class PeriodReviewResponse(
     val period: String,
     val totalTrades: Int,
@@ -70,7 +56,6 @@ data class PeriodReviewResponse(
     val worstPerformer: String?,
     val mostTradedTicker: String?,
     val winRateChange: Double?,
-    val topTags: List<String>,
 ) : Serializable {
     companion object {
         private const val serialVersionUID = 1L
